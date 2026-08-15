@@ -709,3 +709,28 @@ button {
     animation: none;
   }
 }
+
+/* ---- pause overlay (WP-4) ------------------------------------------------
+   Built once in main.ts, appended inside #stage so it scales with it.
+   Existing tokens only: var(--bg) translucent backdrop, var(--fg) text,
+   var(--px) pixel font. No new colours. */
+.pause-overlay {
+  display: none;
+  position: absolute;
+  inset: 0;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--bg) 80%, transparent);
+  z-index: 1000;
+}
+
+.pause-overlay.is-visible {
+  display: flex;
+}
+
+.pause-overlay-text {
+  font-family: var(--px);
+  color: var(--fg);
+  font-size: 24px;
+  letter-spacing: 0.05em;
+}
