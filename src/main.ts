@@ -5,6 +5,7 @@ import { mountStage } from "./render/stage";
 import { buildShell } from "./render/shell";
 import { render } from "./render/floor";
 import { tick, acceptProject, assignAgent, retryAgent } from "./sim/tick";
+import { mountGestures, syncFocusability } from "./input/gestures";
 
 const params = new URLSearchParams(window.location.search);
 const seed = params.get("seed") ?? "seed-1";
@@ -18,8 +19,10 @@ if (!stageEl) {
 
 mountStage(stageEl);
 const refs = buildShell(stageEl);
+mountGestures(state, refs);
 
 render(state, refs, 0);
+syncFocusability(state, refs);
 
 // ---------------------------------------------------------------------------
 // Pause overlay — built once here, appended inside #stage so it scales with
@@ -65,6 +68,7 @@ function frame(now: number): void {
     acc -= STEP;
   }
   render(state, refs, acc / STEP);
+  syncFocusability(state, refs);
 
   if (state.finished) {
     // eslint-disable-next-line no-console
