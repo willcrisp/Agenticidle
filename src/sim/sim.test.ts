@@ -1,6 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { DEFAULT_CONFIG, cloneConfig } from "./config";
-import { createRun, effectiveOneShot, tokenPriceMult, spawnProject } from "./state";
+import { DEFAULT_CONFIG, cloneConfig, SIZE_ORDER } from "./config";
+import {
+  createRun,
+  effectiveOneShot,
+  tokenPriceMult,
+  spawnProject,
+  sizeUnlocked,
+  deliveriesUntilSize,
+} from "./state";
 import {
   tick,
   acceptProject,
@@ -8,6 +15,9 @@ import {
   retryAgent,
   benchAgent,
   finalise,
+  hireAgent,
+  buyModelLicence,
+  classUnlocked,
 } from "./tick";
 import { simulateRun } from "../harness/run";
 import { balanced } from "./player";
@@ -274,6 +284,102 @@ describe("the board", () => {
 
     expect(perWork(late)).toBeGreaterThan(perWork(early));
     expect(diff(late)).toBeGreaterThan(diff(early));
+  });
+});
+
+describe("the board ramps", () => {
+  it("opens with nothing but the two smallest sizes, at one pip", () => {
+    const s = createRun(DEFAULT_CONFIG, "ramp-open");
+    const early = [...Array(200)].map(() => spawnProject(s));
+    const sizes = new Set(early.map((p) => p.size));
+    expect(sizes.has("medium")).toBe(false);
+    expect(sizes.has("large")).toBe(false);
+    expect(sizes.has("huge")).toBe(false);
+    expect(Math.max(...early.map((p) => p.difficulty))).toBeLessThanOrEqual(2);
+    // A first contract has to be something you can clear in a couple of runs.
+    expect(Math.max(...early.map((p) => p.work))).toBeLessThanOrEqual(
+      DEFAULT_CONFIG.sizes.small.work
+    );
+  });
+
+  it("the opening offers are a fraction of the closing ones", () => {
+    const s = createRun(DEFAULT_CONFIG, "ramp-money");
+    const mean = (arr: { payout: number }[]) =>
+      arr.reduce((a, p) => a + p.payout, 0) / arr.length;
+    const early = mean([...Array(120)].map(() => spawnProject(s)));
+    s.t = DEFAULT_CONFIG.runSeconds * 0.9;
+    s.deliveries = 60;
+    const late = mean([...Array(120)].map(() => spawnProject(s)));
+    expect(late).toBeGreaterThan(early * 5);
+  });
+
+  it("big contracts unlock on the clock", () => {
+    const s = createRun(DEFAULT_CONFIG, "ramp-clock");
+    expect(sizeUnlocked(s, "huge")).toBe(false);
+    s.t = DEFAULT_CONFIG.runSeconds * DEFAULT_CONFIG.sizes.huge.unlockAtRunFraction;
+    expect(sizeUnlocked(s, "huge")).toBe(true);
+  });
+
+  it("...or on deliveries banked, whichever lands first", () => {
+    const s = createRun(DEFAULT_CONFIG, "ramp-deliv");
+    expect(sizeUnlocked(s, "large")).toBe(false);
+    expect(deliveriesUntilSize(s, "large")).toBe(
+      DEFAULT_CONFIG.sizes.large.unlockAtDeliveries
+    );
+    s.deliveries = DEFAULT_CONFIG.sizes.large.unlockAtDeliveries;
+    expect(sizeUnlocked(s, "large")).toBe(true);
+    expect(deliveriesUntilSize(s, "large")).toBe(0);
+    expect(s.t).toBe(0); // the clock never moved — deliveries did this
+  });
+
+  it("every size is reachable by the buzzer", () => {
+    const s = createRun(DEFAULT_CONFIG, "ramp-all");
+    s.t = DEFAULT_CONFIG.runSeconds;
+    for (const size of SIZE_ORDER) expect(sizeUnlocked(s, size)).toBe(true);
+    const late = [...Array(300)].map(() => spawnProject(s));
+    for (const size of SIZE_ORDER) {
+      expect(late.some((p) => p.size === size)).toBe(true);
+    }
+  });
+});
+
+describe("model licences", () => {
+  it("a class with no licence cannot be hired at any price", () => {
+    const s = createRun(DEFAULT_CONFIG, "licence-gate");
+    s.cash = 1_000_000;
+    expect(classUnlocked(s, "elite")).toBe(false);
+    expect(hireAgent(s, "elite")).toBe(false);
+    expect(s.agents.some((a) => a.cls === "elite")).toBe(false);
+    expect(s.cash).toBe(1_000_000);
+  });
+
+  it("buying the licence is what makes the class hireable", () => {
+    const s = createRun(DEFAULT_CONFIG, "licence-buy");
+    s.cash = 1_000_000;
+    expect(buyModelLicence(s, "elite")).toBe(true);
+    expect(classUnlocked(s, "elite")).toBe(true);
+    expect(hireAgent(s, "elite")).toBe(true);
+    expect(s.agents.some((a) => a.cls === "elite")).toBe(true);
+    expect(s.cash).toBe(
+      1_000_000 - DEFAULT_CONFIG.classes.elite.licenceCost - DEFAULT_CONFIG.classes.elite.cost
+    );
+  });
+
+  it("a licence you cannot afford is not sold — unlike credits, it never lends", () => {
+    const s = createRun(DEFAULT_CONFIG, "licence-broke");
+    s.cash = DEFAULT_CONFIG.classes.senior.licenceCost - 1;
+    expect(buyModelLicence(s, "senior")).toBe(false);
+    expect(classUnlocked(s, "senior")).toBe(false);
+    expect(s.cash).toBe(DEFAULT_CONFIG.classes.senior.licenceCost - 1);
+  });
+
+  it("the run starts with the free class only", () => {
+    const s = createRun(DEFAULT_CONFIG, "licence-start");
+    for (const cls of ["starter", "senior", "elite"] as const) {
+      const free = DEFAULT_CONFIG.classes[cls].licenceCost <= 0;
+      expect(classUnlocked(s, cls)).toBe(free);
+    }
+    expect(classUnlocked(s, "starter")).toBe(true);
   });
 });
 

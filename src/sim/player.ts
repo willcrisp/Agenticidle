@@ -4,6 +4,8 @@ import {
   acceptProject,
   assignAgent,
   buyCreditBlock,
+  buyModelLicence,
+  classUnlocked,
   hireAgent,
   retryAgent,
   setDial,
@@ -34,6 +36,8 @@ export interface PlayerApi {
   dial(pod: number, d: Dial): void;
   buy(blockIndex: number): void;
   hire(cls: ClassName): void;
+  /** Buy the model licence that makes a class hireable in the first place. */
+  unlock(cls: ClassName): void;
 }
 
 const DECISION_INTERVAL = 0.5; // the player re-reads the floor twice a second
@@ -103,6 +107,7 @@ export class Player {
       dial: (pod, d) => setDial(s, pod, d),
       buy: (b) => buyCreditBlock(s, b),
       hire: (c) => hireAgent(s, c),
+      unlock: (c) => buyModelLicence(s, c),
     };
   }
 }
@@ -162,6 +167,39 @@ function harvestMode(s: RunState): boolean {
   return s.t / s.cfg.runSeconds >= HARVEST_AT;
 }
 
+/**
+ * Walk a preference order of classes top-down and make at most one purchase.
+ *
+ * Classes are gated behind a model licence now, so "I want an elite" is two
+ * transactions, not one. A strategy that wants the top of the ladder has to be
+ * able to afford the licence AND the first body before it commits, or it will
+ * strand cash on a licence it can't use. Buying the licence counts as this
+ * decision's purchase — the hire lands on a later decision, once the money has
+ * come back.
+ */
+function investLadder(
+  s: RunState,
+  api: PlayerApi,
+  order: ClassName[],
+  reserve: number
+): void {
+  const spare = s.cash - reserve;
+  for (const cls of order) {
+    const c = s.cfg.classes[cls];
+    if (classUnlocked(s, cls)) {
+      if (spare >= c.cost) {
+        api.hire(cls);
+        return;
+      }
+      continue;
+    }
+    if (spare >= c.licenceCost + c.cost) {
+      api.unlock(cls);
+      return;
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Scripted strategies
 // ---------------------------------------------------------------------------
@@ -195,11 +233,10 @@ export const balanced: Strategy = {
 
     keepCreditsTopped(s, api, harvest ? 20 : 70);
 
-    if (!harvest && s.t < s.cfg.runSeconds * 0.6) {
-      const spare = s.cash - 6000;
-      if (spare > s.cfg.classes.elite.cost) api.hire("elite");
-      else if (spare > s.cfg.classes.senior.cost) api.hire("senior");
-      else if (spare > s.cfg.classes.starter.cost && s.agents.length < 8) api.hire("starter");
+    if (!harvest && s.t < s.cfg.runSeconds * 0.7) {
+      const order: ClassName[] = ["elite", "senior"];
+      if (s.agents.length < 8) order.push("starter");
+      investLadder(s, api, order, 2500);
     }
   },
 };
@@ -229,8 +266,8 @@ export const swarmer: Strategy = {
       if (s.pods[pod]) api.dial(pod, harvestMode(s) ? "fast" : "fast");
     }
     keepCreditsTopped(s, api, 60);
-    if (s.t < s.cfg.runSeconds * 0.5 && s.cash > s.cfg.classes.senior.cost + 8000) {
-      api.hire("senior");
+    if (s.t < s.cfg.runSeconds * 0.5) {
+      investLadder(s, api, ["senior", "starter"], 6000);
     }
   },
 };
@@ -251,8 +288,10 @@ export const eliteOnly: Strategy = {
       if (s.pods[pod]) api.dial(pod, harvestMode(s) ? "fast" : "normal");
     }
     keepCreditsTopped(s, api, 80);
-    if (s.t < s.cfg.runSeconds * 0.7 && s.cash > s.cfg.classes.elite.cost + 5000) {
-      api.hire("elite");
+    if (s.t < s.cfg.runSeconds * 0.7) {
+      // Quality only: it climbs the licence ladder and never buys a starter,
+      // so it stays short-handed for a long time before it pays off.
+      investLadder(s, api, ["elite", "senior"], 4000);
     }
   },
 };
@@ -273,8 +312,9 @@ export const swarmCheap: Strategy = {
       if (s.pods[pod]) api.dial(pod, harvestMode(s) ? "fast" : "normal");
     }
     keepCreditsTopped(s, api, 70);
-    if (s.t < s.cfg.runSeconds * 0.7 && s.cash > s.cfg.classes.starter.cost + 4000) {
-      api.hire("starter");
+    if (s.t < s.cfg.runSeconds * 0.7) {
+      // Never licences anything: bodies are the whole plan.
+      investLadder(s, api, ["starter"], 4000);
     }
   },
 };

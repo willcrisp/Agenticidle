@@ -1,4 +1,12 @@
-import { Config, ClassName, SizeName, Dial, DEFAULT_CONFIG } from "./config";
+import {
+  Config,
+  ClassName,
+  SizeName,
+  Dial,
+  DEFAULT_CONFIG,
+  SIZE_ORDER,
+  CLASS_ORDER,
+} from "./config";
 import { Rng } from "./rng";
 
 export type AgentState = "idle" | "running" | "blocked";
@@ -16,6 +24,14 @@ export interface Agent {
   blockedTime: number;
   /** Sim-time this agent became blocked, for queue ordering. */
   blockedSince: number;
+  /** Sim-time this agent joined the roster. 0 for the starting fleet. */
+  hiredAt: number;
+  /** Runs that resolved green, lifetime. */
+  runsGreen: number;
+  /** Runs that blocked, lifetime. */
+  runsRed: number;
+  /** Work-seconds this agent has actually landed on projects, lifetime. */
+  workDelivered: number;
 }
 
 export interface Project {
@@ -54,6 +70,8 @@ export interface RunState {
   deliveries: number;
 
   agents: Agent[];
+  /** Model licences bought: the classes that can be hired right now. */
+  unlockedClasses: ClassName[];
   /** One slot per pod; null = empty pod. */
   pods: (Project | null)[];
   board: Project[];
@@ -97,6 +115,7 @@ export interface Telemetry {
   peakRoster: number;
   moneySpentOnCredits: number;
   moneySpentOnAgents: number;
+  moneySpentOnModels: number;
 }
 
 const NAMES = [
@@ -121,7 +140,13 @@ export function createRun(cfg: Config = DEFAULT_CONFIG, seed = "seed-1"): RunSta
   nextAgentId = 1;
   nextProjectId = 1;
 
-  const agents = cfg.startingRoster.map((cls) => makeAgent(cls, rng));
+  const agents = cfg.startingRoster.map((cls) => makeAgent(cls, rng, 0));
+
+  // A class is hireable from the start if its licence is free, and anything
+  // the run hands you at t=0 is hireable by definition — you already own it.
+  const unlockedClasses = CLASS_ORDER.filter(
+    (c) => cfg.classes[c].licenceCost <= 0 || cfg.startingRoster.includes(c)
+  );
 
   const state: RunState = {
     cfg,
@@ -134,6 +159,7 @@ export function createRun(cfg: Config = DEFAULT_CONFIG, seed = "seed-1"): RunSta
     creditsBought: 0,
     deliveries: 0,
     agents,
+    unlockedClasses,
     pods: new Array(cfg.podCount).fill(null),
     board: [],
     boardRefillAt: 0,
@@ -148,7 +174,7 @@ export function createRun(cfg: Config = DEFAULT_CONFIG, seed = "seed-1"): RunSta
   return state;
 }
 
-export function makeAgent(cls: ClassName, rng: Rng): Agent {
+export function makeAgent(cls: ClassName, rng: Rng, hiredAt = 0): Agent {
   return {
     id: nextAgentId++,
     name: NAMES[Math.floor(rng.next() * NAMES.length)],
@@ -158,6 +184,10 @@ export function makeAgent(cls: ClassName, rng: Rng): Agent {
     progress: 0,
     blockedTime: 0,
     blockedSince: 0,
+    hiredAt,
+    runsGreen: 0,
+    runsRed: 0,
+    workDelivered: 0,
   };
 }
 
@@ -175,16 +205,56 @@ export function escalationT(state: RunState): number {
   }
 }
 
+/**
+ * Has this job size appeared on the board yet? Clock OR deliveries, whichever
+ * lands first — playing well opens the bigger contracts sooner, which is the
+ * engine-building half of the ramp.
+ */
+export function sizeUnlocked(state: RunState, size: SizeName): boolean {
+  const sc = state.cfg.sizes[size];
+  const byClock = state.t >= sc.unlockAtRunFraction * state.cfg.runSeconds;
+  const byWork = state.deliveries >= sc.unlockAtDeliveries;
+  return byClock || byWork;
+}
+
+/** How much of this size the board will be serving right now. 0 = not yet. */
+export function sizeWeightNow(state: RunState, size: SizeName): number {
+  if (!sizeUnlocked(state, size)) return 0;
+  const sc = state.cfg.sizes[size];
+  const k = escalationT(state);
+  return Math.max(0, sc.weightEarly + (sc.weightLate - sc.weightEarly) * k);
+}
+
+/**
+ * Deliveries still owed before this size unlocks, or 0 if it already has.
+ * UI-facing: this is what makes the ramp legible without a tutorial.
+ */
+export function deliveriesUntilSize(state: RunState, size: SizeName): number {
+  if (sizeUnlocked(state, size)) return 0;
+  return Math.max(0, state.cfg.sizes[size].unlockAtDeliveries - state.deliveries);
+}
+
 export function spawnProject(state: RunState): Project {
   const { cfg, rng } = state;
-  const size = rng.weighted(cfg.sizeWeights);
+
+  const weights = {} as Record<SizeName, number>;
+  let total = 0;
+  for (const s of SIZE_ORDER) {
+    const w = sizeWeightNow(state, s);
+    weights[s] = w;
+    total += w;
+  }
+  // Every weight at zero would make the draw meaningless; the smallest size is
+  // always unlocked, so this is belt and braces for a mis-tuned config.
+  const size = total > 0 ? rng.weighted(weights) : SIZE_ORDER[0];
   const sc = cfg.sizes[size];
   const k = escalationT(state);
 
   const payoutMult = 1 + (cfg.escalation.payoutEndMult - 1) * k;
   const diffTarget =
     cfg.escalation.difficultyStart +
-    (cfg.escalation.difficultyEnd - cfg.escalation.difficultyStart) * k;
+    (cfg.escalation.difficultyEnd - cfg.escalation.difficultyStart) * k +
+    sc.difficultyBias;
   const difficulty = Math.max(
     1,
     Math.min(5, Math.round(diffTarget + rng.range(-0.7, 0.7)))
@@ -230,6 +300,7 @@ export function emptyTelemetry(cfg: Config): Telemetry {
     peakRoster: cfg.startingRoster.length,
     moneySpentOnCredits: 0,
     moneySpentOnAgents: 0,
+    moneySpentOnModels: 0,
   };
 }
 
@@ -251,4 +322,11 @@ export function tokenPriceMult(state: RunState): number {
     credits.priceFloorMult,
     1 - state.deliveries * credits.priceDropPerDelivery
   );
+}
+
+/** What one credit block costs right now, after the delivery discount. */
+export function blockPrice(state: RunState, blockIndex: number): number {
+  const block = state.cfg.credits.blocks[blockIndex];
+  if (!block) return 0;
+  return Math.round(block.price * tokenPriceMult(state));
 }

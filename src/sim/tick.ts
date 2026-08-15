@@ -3,7 +3,7 @@ import {
   RunState,
   effectiveOneShot,
   spawnProject,
-  tokenPriceMult,
+  blockPrice,
   makeAgent,
 } from "./state";
 
@@ -70,7 +70,7 @@ export function setDial(s: RunState, pod: number, dial: Dial): boolean {
 export function buyCreditBlock(s: RunState, blockIndex: number): boolean {
   const block = s.cfg.credits.blocks[blockIndex];
   if (!block) return false;
-  const price = Math.round(block.price * tokenPriceMult(s));
+  const price = blockPrice(s, blockIndex);
   s.cash -= price;
   s.credits += block.tokens;
   s.creditsBought += block.tokens;
@@ -78,13 +78,35 @@ export function buyCreditBlock(s: RunState, blockIndex: number): boolean {
   return true;
 }
 
+/** Can this class be hired at all yet — i.e. has its licence been bought? */
+export function classUnlocked(s: RunState, cls: ClassName): boolean {
+  return s.unlockedClasses.includes(cls);
+}
+
+/**
+ * Buy the licence for a model class. This is the "invest in a better model"
+ * lever: one-off, run-scoped, and it buys nothing but the right to hire.
+ * Unlike a credit block it will not put you in the red — a licence you cannot
+ * afford is simply not sold.
+ */
+export function buyModelLicence(s: RunState, cls: ClassName): boolean {
+  if (classUnlocked(s, cls)) return false;
+  const price = s.cfg.classes[cls].licenceCost;
+  if (s.cash < price) return false;
+  s.cash -= price;
+  s.telemetry.moneySpentOnModels += price;
+  s.unlockedClasses.push(cls);
+  return true;
+}
+
 export function hireAgent(s: RunState, cls: ClassName): boolean {
   if (s.agents.length >= s.cfg.maxRoster) return false;
+  if (!classUnlocked(s, cls)) return false;
   const cost = s.cfg.classes[cls].cost;
   if (s.cash < cost) return false;
   s.cash -= cost;
   s.telemetry.moneySpentOnAgents += cost;
-  s.agents.push(makeAgent(cls, s.rng));
+  s.agents.push(makeAgent(cls, s.rng, s.t));
   s.telemetry.peakRoster = Math.max(s.telemetry.peakRoster, s.agents.length);
   return true;
 }
@@ -184,11 +206,14 @@ export function tick(s: RunState, dtSeconds: number): void {
       }
       p.workDone += delivered;
       p.slices.push(runWork);
+      a.runsGreen++;
+      a.workDelivered += delivered;
       s.telemetry.runsAttempted++; // the auto-started next run
       if (p.workDone >= p.work) deliver(s, a.pod);
     } else {
       a.state = "blocked";
       a.blockedSince = s.t;
+      a.runsRed++;
       s.blockedQueue.push(a.id);
       s.telemetry.runsFailed++;
       const bucket = Math.min(

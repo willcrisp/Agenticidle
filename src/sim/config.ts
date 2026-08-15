@@ -7,10 +7,14 @@
  */
 
 export type ClassName = "starter" | "senior" | "elite";
-export type SizeName = "small" | "medium" | "large" | "huge";
+export type SizeName = "tiny" | "small" | "medium" | "large" | "huge";
 export type Dial = "slow" | "normal" | "fast";
 
 export interface AgentClassConfig {
+  /** Shop name. Display only — never branch on it. */
+  label: string;
+  /** One line in the shop about what this model is for. Display only. */
+  blurb: string;
   /** Work-seconds delivered by one successful run. Also sets slice size. */
   runWork: number;
   /** Base chance a run resolves green, before difficulty. 0..1 */
@@ -19,13 +23,36 @@ export interface AgentClassConfig {
   cost: number;
   /** Multiplier on credit burn while running. 1 = baseline. */
   burnMult: number;
+  /**
+   * One-off price to make this class hireable at all — the "invest in a better
+   * model" lever. 0 = hireable from the first second of the run.
+   */
+  licenceCost: number;
 }
 
 export interface SizeConfig {
+  /** Board label. Display only. */
+  label: string;
   /** Total work-seconds to reach 100%. */
   work: number;
   /** Payout = work * payoutPerWork, before escalation. */
   payoutPerWork: number;
+  /**
+   * Added to the escalation difficulty target before rounding. Keeps the small
+   * jobs approachable all run, and stops a flagship ever looking trivial.
+   */
+  difficultyBias: number;
+  /** Relative frequency on the board at t=0... */
+  weightEarly: number;
+  /** ...and at the buzzer. Lerped by the escalation curve in between. */
+  weightLate: number;
+  /**
+   * Fraction of the run that must elapse before this size can appear at all.
+   * 0 = on the board from the first second.
+   */
+  unlockAtRunFraction: number;
+  /** ...or this many deliveries banked, whichever lands first. */
+  unlockAtDeliveries: number;
 }
 
 export interface Config {
@@ -44,8 +71,6 @@ export interface Config {
 
   classes: Record<ClassName, AgentClassConfig>;
   sizes: Record<SizeName, SizeConfig>;
-  /** Relative frequency of each size appearing on the board. */
-  sizeWeights: Record<SizeName, number>;
 
   difficulty: {
     /** One-shot penalty per pip above 1. Subtractive. */
@@ -107,27 +132,104 @@ export interface Config {
 export const DEFAULT_CONFIG: Config = {
   runSeconds: 1800,
   tickHz: 30,
-  startingCash: 5000,
+  startingCash: 2500,
   startingCredits: 900,
-  startingRoster: ["starter", "starter", "senior"],
+  // You start with two cheap bodies and no licence for anything better. The
+  // whole ladder — more hands, then better models, then bigger contracts — is
+  // bought with money earned inside the run.
+  startingRoster: ["starter", "starter"],
   maxRoster: 24,
   podCount: 4,
   boardSlots: 3,
   boardRefillSeconds: 4,
 
   classes: {
-    starter: { runWork: 6, oneShot: 0.62, cost: 2200, burnMult: 1.0 },
-    senior: { runWork: 9, oneShot: 0.76, cost: 6500, burnMult: 1.3 },
-    elite: { runWork: 15, oneShot: 0.88, cost: 17000, burnMult: 1.7 },
+    starter: {
+      label: "STARTER",
+      blurb: "Cheap hands. Breaks often, costs almost nothing to run.",
+      runWork: 6,
+      oneShot: 0.62,
+      cost: 1400,
+      burnMult: 1.0,
+      licenceCost: 0,
+    },
+    senior: {
+      label: "SENIOR",
+      blurb: "Longer runs, fewer questions. Costs more to keep running.",
+      runWork: 9,
+      oneShot: 0.76,
+      cost: 5200,
+      burnMult: 1.3,
+      licenceCost: 4500,
+    },
+    elite: {
+      label: "ELITE",
+      blurb: "Barely ever blocks. Burns tokens like a furnace.",
+      runWork: 15,
+      oneShot: 0.88,
+      cost: 15000,
+      burnMult: 1.7,
+      licenceCost: 18000,
+    },
   },
 
+  // The board ramps. Only the two smallest sizes exist at the start of a run;
+  // the rest unlock on the clock OR on deliveries banked, whichever comes
+  // first, so a fast opening is rewarded with a bigger board sooner. The
+  // weights then lerp from `weightEarly` to `weightLate` across the run, which
+  // is what retires the quick fixes rather than a hard cutoff.
   sizes: {
-    small: { work: 50, payoutPerWork: 22 },
-    medium: { work: 100, payoutPerWork: 26 },
-    large: { work: 200, payoutPerWork: 30 },
-    huge: { work: 400, payoutPerWork: 34 },
+    tiny: {
+      label: "QUICK FIX",
+      work: 16,
+      payoutPerWork: 18,
+      difficultyBias: -0.9,
+      weightEarly: 7,
+      weightLate: 0.5,
+      unlockAtRunFraction: 0,
+      unlockAtDeliveries: 0,
+    },
+    small: {
+      label: "SMALL JOB",
+      work: 45,
+      payoutPerWork: 21,
+      difficultyBias: -0.35,
+      weightEarly: 4,
+      weightLate: 1.5,
+      unlockAtRunFraction: 0,
+      unlockAtDeliveries: 0,
+    },
+    medium: {
+      label: "MEDIUM JOB",
+      work: 110,
+      payoutPerWork: 24,
+      difficultyBias: 0,
+      weightEarly: 0.6,
+      weightLate: 4,
+      unlockAtRunFraction: 0.1,
+      unlockAtDeliveries: 5,
+    },
+    large: {
+      label: "LARGE JOB",
+      work: 240,
+      payoutPerWork: 27,
+      difficultyBias: 0.4,
+      weightEarly: 0.2,
+      weightLate: 3,
+      unlockAtRunFraction: 0.28,
+      unlockAtDeliveries: 14,
+    },
+    huge: {
+      label: "FLAGSHIP",
+      work: 500,
+      payoutPerWork: 30,
+      difficultyBias: 0.9,
+      weightEarly: 0.1,
+      weightLate: 1.5,
+      unlockAtRunFraction: 0.5,
+      unlockAtDeliveries: 26,
+    },
   },
-  sizeWeights: { small: 3, medium: 4, large: 2, huge: 1 },
 
   difficulty: { penaltyPerPip: 0.09, floor: 0.15 },
 
@@ -162,7 +264,7 @@ export const DEFAULT_CONFIG: Config = {
   escalation: {
     shape: "linear",
     payoutEndMult: 3.2,
-    difficultyStart: 1.4,
+    difficultyStart: 1.0,
     difficultyEnd: 4.6,
     steps: 5,
   },
@@ -170,6 +272,10 @@ export const DEFAULT_CONFIG: Config = {
   failedRunsCostCredits: true,
   discardOverflow: false,
 };
+
+/** Declaration order, which is also the ladder order shown in the UI. */
+export const SIZE_ORDER: readonly SizeName[] = ["tiny", "small", "medium", "large", "huge"];
+export const CLASS_ORDER: readonly ClassName[] = ["starter", "senior", "elite"];
 
 export function cloneConfig(c: Config): Config {
   return JSON.parse(JSON.stringify(c));
