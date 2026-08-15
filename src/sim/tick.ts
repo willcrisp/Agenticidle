@@ -19,7 +19,7 @@ export function acceptProject(s: RunState, boardIndex: number, pod: number): boo
   s.board.splice(boardIndex, 1);
   p.acceptedAt = s.t;
   s.pods[pod] = p;
-  if (s.boardRefillAt <= s.t) s.boardRefillAt = s.t + s.cfg.boardRefillSeconds;
+  s.boardRefillDue.push(s.t + s.cfg.boardRefillSeconds);
   return true;
 }
 
@@ -200,9 +200,14 @@ export function tick(s: RunState, dtSeconds: number): void {
   }
 
   // --- board refill ---------------------------------------------------------
-  if (s.board.length < cfg.boardSlots && s.t >= s.boardRefillAt) {
+  // One timer per card taken, not one shared timer. Under a shared timer the
+  // second and third accepts queued behind the first, so clearing the board
+  // in three quick drags left it dead for 3x boardRefillSeconds and the tray
+  // read as empty through the whole opening. Every card taken now comes back
+  // boardRefillSeconds after *it* was taken.
+  while (s.boardRefillDue.length > 0 && s.t >= (s.boardRefillDue[0] ?? Infinity)) {
+    s.boardRefillDue.shift();
     s.board.push(spawnProject(s));
-    if (s.board.length < cfg.boardSlots) s.boardRefillAt = s.t + cfg.boardRefillSeconds;
   }
 
   // --- buzzer ---------------------------------------------------------------

@@ -120,6 +120,11 @@ button {
   background: var(--floor);
   overflow: hidden;
   flex: none;
+  /* Nothing on the floor is text to be copied, and a drag that starts on a
+     card's payout would otherwise leave a blue selection smeared across it
+     for the length of the gesture. */
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /* ================================================================
@@ -143,6 +148,9 @@ button {
 .sprite {
   image-rendering: pixelated;
   display: block;
+  /* An <img> is natively draggable; that gesture is the HTML5 drag-and-drop
+     API the tech stack doc rules out, and it fights our pointer drag. */
+  -webkit-user-drag: none;
 }
 
 /* ================= TOP: two numbers, credits, buttons, clock ================= */

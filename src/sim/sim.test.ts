@@ -257,6 +257,30 @@ describe("the board", () => {
     expect(s.board.length).toBe(DEFAULT_CONFIG.boardSlots);
   });
 
+  it("replaces cards taken together in parallel, not in a queue", () => {
+    const s = createRun(DEFAULT_CONFIG, "board-burst");
+    // Clear the whole board in one burst, the way an opening drag flurry does.
+    for (let pod = 0; pod < DEFAULT_CONFIG.boardSlots; pod++) {
+      acceptProject(s, 0, pod);
+      step(s, 0.5);
+    }
+    expect(s.board.length).toBe(0);
+    // Every card is back one refill window after the last one was taken —
+    // not boardSlots windows later.
+    step(s, DEFAULT_CONFIG.boardRefillSeconds + 1);
+    expect(s.board.length).toBe(DEFAULT_CONFIG.boardSlots);
+  });
+
+  it("never holds more pending refills than empty slots", () => {
+    const s = createRun(DEFAULT_CONFIG, "board-invariant");
+    acceptProject(s, 0, 0);
+    acceptProject(s, 0, 1);
+    expect(s.boardRefillDue.length).toBe(DEFAULT_CONFIG.boardSlots - s.board.length);
+    step(s, DEFAULT_CONFIG.boardRefillSeconds * 3);
+    expect(s.board.length).toBe(DEFAULT_CONFIG.boardSlots);
+    expect(s.boardRefillDue.length).toBe(0);
+  });
+
   it("gets richer and harder over the run", () => {
     const s = createRun(DEFAULT_CONFIG, "escalate");
     const early = [...Array(40)].map(() => {

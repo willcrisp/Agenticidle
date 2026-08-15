@@ -57,7 +57,12 @@ export interface RunState {
   /** One slot per pod; null = empty pod. */
   pods: (Project | null)[];
   board: Project[];
-  boardRefillAt: number;
+  /**
+   * Sim-times at which taken cards get replaced, ascending — one entry per
+   * card currently missing from the board. A card taken starts its own timer
+   * rather than queueing behind the previous one.
+   */
+  boardRefillDue: number[];
 
   /** Agents waiting on a click, in the order they broke. */
   blockedQueue: number[];
@@ -136,7 +141,7 @@ export function createRun(cfg: Config = DEFAULT_CONFIG, seed = "seed-1"): RunSta
     agents,
     pods: new Array(cfg.podCount).fill(null),
     board: [],
-    boardRefillAt: 0,
+    boardRefillDue: [],
     blockedQueue: [],
     slowLocked: false,
     lastRepoAt: -999,
