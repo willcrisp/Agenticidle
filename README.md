@@ -7,6 +7,11 @@ One number at the end.
 The agents write the code. You are the only thing standing between them and
 shipping, and there is only one of you.
 
+![The floor, three pods running](docs/screenshots/04-agents-running.png)
+
+More in [`docs/screenshots/`](docs/screenshots/) — the two gestures mid-flight,
+a blocked agent, and what eight minutes of not clicking does to a payout.
+
 ---
 
 ## Cookbook
