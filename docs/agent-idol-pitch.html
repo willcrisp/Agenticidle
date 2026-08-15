@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Idol</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+
+:root{
+  --bg:#0D0F11; --floor:#131619; --pod:#191D21; --pod-2:#1E2227;
+  --line:#282D33; --line-soft:#20242A;
+  --fg:#C6CBD1; --fg-2:#878E96; --dim:#5A616A; --faint:#383E45;
+  --run:#5F807A;   /* muted sea  */
+  --ok:#78906C;    /* sage       */
+  --fail:#A5605A;  /* dusty clay */
+  --idle:#AC9463;  /* brass      */
+  --tok:#6B8598;   /* slate      */
+  --px:"Silkscreen","JetBrains Mono",monospace;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+  --sans:"Inter",system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);
+  -webkit-font-smoothing:antialiased;padding:30px 16px 64px}
+
+.head{max-width:1280px;margin:0 auto 24px}
+.kicker{font-family:var(--mono);font-size:10px;letter-spacing:.24em;color:var(--dim);margin-bottom:14px}
+.title{font-family:var(--px);font-size:clamp(22px,4.4vw,38px);letter-spacing:.02em;color:#E6EAEE}
+.lede{margin-top:14px;max-width:60ch;color:var(--fg-2);font-size:14px;line-height:1.65}
+.lede b{color:var(--fg);font-weight:500}
+
+.frame-wrap{max-width:1280px;margin:0 auto}
+.cap{font-family:var(--mono);font-size:10px;letter-spacing:.2em;color:var(--faint);margin:30px 0 10px}
+.cap b{color:var(--fg-2);font-weight:400}
+.stage{width:100%;overflow:hidden;border:1px solid var(--line);border-radius:6px;background:#000}
+.fit{transform-origin:top left}
+
+.game{width:1280px;height:720px;background:var(--floor);display:flex;flex-direction:column;
+  font-family:var(--mono)}
+
+/* ================= TOP: two numbers, one button ================= */
+.topbar{height:70px;flex:none;background:#101317;border-bottom:1px solid var(--line);
+  display:flex;align-items:center;padding:0 22px;gap:30px}
+.money{font-family:var(--px);font-size:30px;color:#B8C2B4;letter-spacing:.01em;line-height:1}
+.money span{display:block;font-size:9px;color:var(--faint);letter-spacing:.14em;margin-top:8px}
+
+.credits{flex:1;max-width:520px}
+.cred-top{display:flex;justify-content:space-between;align-items:baseline}
+.cred-l{font-family:var(--px);font-size:9px;letter-spacing:.14em;color:var(--faint)}
+.cred-v{font-family:var(--px);font-size:15px;color:var(--tok)}
+.cred-bar{height:12px;background:#0D1114;border:1px solid #0D1114;margin-top:8px;position:relative;overflow:hidden}
+.cred-bar i{position:absolute;inset:0 auto 0 0;background:var(--tok);width:34%;
+  animation:drain 9s linear infinite}
+@keyframes drain{from{width:36%}to{width:22%}}
+.cred-bar u{position:absolute;inset:0;text-decoration:none;
+  background:repeating-linear-gradient(90deg,transparent 0 33px,#0D1114 33px 34px)}
+
+.buy{font-family:var(--px);font-size:12px;padding:12px 18px;border:1px solid var(--tok);
+  color:var(--tok);background:#131A20;line-height:1;flex:none}
+.spacer{margin-left:auto}
+.pause{font-family:var(--px);font-size:12px;padding:12px 15px;border:1px solid var(--line);
+  color:var(--dim);background:#151A1E;line-height:1}
+
+/* ================= PODS ================= */
+.pods{flex:1;padding:16px;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;
+  gap:16px;min-height:0}
+.pod{background:var(--pod);border:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden}
+.pod.hot{border-color:var(--fail)}
+.pod-h{padding:12px 14px 11px;border-bottom:1px solid var(--line-soft);background:var(--pod-2)}
+.pod-r1{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.pod-name{font-family:var(--px);font-size:12px;letter-spacing:.03em;color:var(--fg)}
+.pod-pay{font-family:var(--px);font-size:17px;color:var(--ok);letter-spacing:.01em}
+.pod-pay.low{color:var(--fail)}
+.segs{display:flex;gap:1px;height:9px;margin-top:11px;background:#0D1114;border:1px solid #0D1114}
+.segs i{display:block;height:100%;background:var(--run)}
+.segs i.big{background:#7C9A94}
+.segs .rest{flex:1;background:#191D21}
+
+/* the dial — three buttons, no numbers */
+.dial{display:flex;gap:3px;margin-top:11px}
+.dial b{font-family:var(--px);font-size:10px;font-weight:400;padding:6px 0;flex:1;text-align:center;
+  border:1px solid var(--line);background:#141719;color:var(--dim)}
+.dial b.on{color:var(--tok);background:#1A2126;border-color:var(--tok)}
+.dial b.on.hi{color:var(--fail);background:#221A19;border-color:var(--fail)}
+
+/* agents — no seats, they just pile in */
+.desks{flex:1;display:flex;flex-wrap:wrap;align-items:flex-end;align-content:flex-end;
+  justify-content:center;gap:0 2px;padding:8px 8px 0;
+  background:linear-gradient(180deg,transparent,rgba(0,0,0,.24))}
+.station{width:98px;display:flex;flex-direction:column;align-items:center;position:relative;
+  padding-bottom:10px}
+.desks.swarm .station{width:62px;padding-bottom:6px}
+.desks.swarm .desk{width:54px;height:7px}
+.desks.swarm .plate b{font-size:7.5px}
+.desks.swarm .runbar{width:46px;height:4px;margin-top:5px}
+.desks.swarm .bub{font-size:8px;padding:4px 5px 5px;border-width:1px}
+.desks.swarm .pop{font-size:10px}
+.bub{position:absolute;top:-6px;left:50%;transform:translateX(-50%);font-family:var(--px);
+  font-size:10px;line-height:1;padding:6px 8px 7px;white-space:nowrap;z-index:4;
+  border:1px solid var(--fail);background:#1D1718;color:#C6A09B;animation:bob 1s ease-in-out infinite}
+.bub::after{content:"";position:absolute;left:50%;bottom:-5px;width:4px;height:4px;
+  background:var(--fail);transform:translateX(-50%)}
+@keyframes bob{0%,100%{transform:translate(-50%,0)}50%{transform:translate(-50%,-4px)}}
+.pop{position:absolute;top:2px;left:50%;transform:translateX(-50%);font-family:var(--px);
+  font-size:13px;color:var(--ok);z-index:4}
+canvas.sprite{image-rendering:pixelated;display:block}
+.desk{width:92px;height:10px;background:#22272C;border-top:2px solid #2E343A;margin-top:-4px}
+.plate{margin-top:8px;text-align:center}
+.plate b{display:block;font-family:var(--px);font-size:10px;letter-spacing:.04em;color:var(--fg-2)}
+.runbar{width:76px;height:6px;background:#0D1114;margin:8px auto 0;position:relative;border:1px solid #0D1114}
+.runbar i{position:absolute;inset:0 auto 0 0;background:var(--run)}
+.runbar.fail i{background:var(--fail);width:100%!important}
+.runbar.ok i{background:var(--ok);width:100%!important}
+.runbar.stall i{background:#2A2F35;width:100%!important}
+.empty{width:98px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;
+  padding-bottom:10px}
+.desks.swarm .empty{width:62px;padding-bottom:6px}
+.empty-slot{width:52px;height:52px;border:2px dashed var(--faint);margin-bottom:22px;
+  display:grid;place-items:center;font-family:var(--px);font-size:7px;color:var(--faint);
+  text-align:center;line-height:1.5;padding:2px}
+.desks.swarm .empty-slot{width:40px;height:40px;margin-bottom:16px;font-size:6px}
+
+/* empty pod = drop a project here */
+.pod.open{border-style:dashed;border-color:var(--faint);background:#15181B;
+  align-items:center;justify-content:center}
+.pod.open div{font-family:var(--px);font-size:12px;color:var(--faint);letter-spacing:.06em;
+  text-align:center;line-height:2}
+
+/* ================= TRAY ================= */
+.tray{height:178px;flex:none;border-top:1px solid var(--line);background:#101316;display:flex}
+.tray-half{flex:1;padding:12px 16px;min-width:0}
+.tray-half + .tray-half{border-left:1px solid var(--line)}
+.tray-h{font-family:var(--px);font-size:10px;letter-spacing:.1em;margin-bottom:12px}
+.tray-h.a{color:var(--idle)} .tray-h.b{color:var(--ok)}
+.tray-row{display:flex;gap:12px;align-items:flex-start}
+
+.bcard{width:88px;text-align:center;border:1px solid var(--idle);background:#191813;
+  padding:8px 4px 9px}
+.bcard canvas{margin:0 auto}
+.bcard b{display:block;font-family:var(--px);font-size:10px;color:var(--idle);margin-top:6px}
+
+/* project card: payout bar over cost bar — the gap is the profit */
+.pcard{flex:1;max-width:196px;border:1px solid var(--line);background:#161A1D;padding:10px 11px 11px}
+.pcard.great{border-color:var(--ok)}
+.pcard-n{font-family:var(--sans);font-size:12px;font-weight:500;color:var(--fg);line-height:1.3;
+  height:32px;overflow:hidden}
+.pcard-p{font-family:var(--px);font-size:16px;color:var(--ok);margin-top:8px;letter-spacing:.01em}
+.diffrow{display:flex;align-items:center;gap:8px;margin-top:11px}
+.diffrow em{font-style:normal;font-family:var(--px);font-size:8px;color:var(--faint);letter-spacing:.06em}
+.pips{display:flex;gap:3px;margin-left:auto}
+.pips i{width:13px;height:10px;background:#22272C;display:block}
+.pips i.on{background:var(--idle)}
+.pips.hard i.on{background:var(--fail)}
+.pcard-f{font-family:var(--px);font-size:8.5px;letter-spacing:.06em;color:var(--faint);margin-top:9px}
+
+/* difficulty pips inside a live pod header */
+.pod-diff{display:flex;gap:3px;margin-left:10px}
+.pod-diff i{width:9px;height:7px;background:#262B31;display:block}
+.pod-diff i.on{background:var(--idle)}
+.pod-diff.hard i.on{background:var(--fail)}
+
+/* ===== annotation overlay for the sheet ===== */
+.legend{max-width:1280px;margin:30px auto 0;border:1px solid var(--line);background:var(--pod);
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
+.lg{padding:20px 18px;border-right:1px solid var(--line-soft)}
+.lg:last-child{border-right:0}
+.lg-k{font-family:var(--px);font-size:11px;letter-spacing:.05em;margin-bottom:10px}
+.lg p{font-size:12.5px;line-height:1.6;color:var(--fg-2);font-family:var(--sans)}
+.k-red{color:var(--fail)} .k-amb{color:var(--idle)} .k-grn{color:var(--ok)}
+.k-blu{color:var(--tok)} .k-gry{color:var(--dim)}
+
+.notes{max-width:1280px;margin:40px auto 0;border-top:1px solid var(--line);padding-top:26px;
+  display:grid;gap:26px;grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}
+.notes h4{font-family:var(--px);font-size:10px;letter-spacing:.08em;color:var(--faint);margin-bottom:10px}
+.notes p{font-size:13px;line-height:1.65;color:var(--fg-2)}
+.notes b{color:var(--fg);font-weight:500}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+
+
+/* ================= ONE-PAGER ================= */
+body{padding:0;background:
+  radial-gradient(900px 500px at 20% -4%, #1A2024 0%, transparent 68%), #0D0F11}
+.wrap{max-width:1280px;margin:0 auto;padding:56px 20px 90px}
+
+.mark{font-family:var(--px);font-size:14px;letter-spacing:.08em;color:#D3D9DE;line-height:1.9}
+.mark span{display:block;font-size:9px;color:var(--faint);letter-spacing:.16em}
+
+.hook{margin-top:52px}
+.hook h1{font-family:var(--px);font-size:clamp(34px,8.4vw,74px);line-height:1.16;color:#E9EDF0}
+.hook h1 u{text-decoration:none;color:var(--fail)}
+.hook p{font-family:var(--sans);font-size:clamp(15px,2.6vw,20px);line-height:1.6;color:var(--fg-2);
+  max-width:42ch;margin-top:22px}
+.hook p b{color:var(--fg);font-weight:500}
+
+.strip{display:flex;gap:10px;flex-wrap:wrap;margin-top:40px}
+.strip div{text-align:center;width:76px}
+.strip canvas{image-rendering:pixelated;display:block;margin:0 auto}
+.strip s{display:block;text-decoration:none;font-family:var(--px);font-size:7.5px;margin-top:8px;
+  letter-spacing:.06em;color:var(--faint)}
+
+.beats{display:grid;grid-template-columns:repeat(auto-fit,minmax(232px,1fr));gap:28px;
+  border-top:1px solid var(--line);margin-top:44px;padding-top:30px}
+.beat h5{font-family:var(--px);font-size:11px;letter-spacing:.06em;margin-bottom:12px}
+.beat p{font-family:var(--sans);font-size:13.5px;line-height:1.65;color:var(--fg-2)}
+.b-1{color:var(--run)} .b-2{color:var(--fail)} .b-3{color:var(--tok)}
+
+.sect{margin-top:66px}
+.sect-h{font-family:var(--px);font-size:12px;letter-spacing:.06em;color:#E9EDF0;margin-bottom:10px}
+.sect-p{font-family:var(--sans);font-size:13.5px;line-height:1.6;color:var(--dim);max-width:62ch;
+  margin-bottom:20px}
+.stage{width:100%;overflow:hidden;border:1px solid var(--line);background:#000}
+.fit{transform-origin:top left}
+
+.keys{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+  border:1px solid var(--line);border-top:0;background:var(--pod)}
+.key{padding:16px 18px;border-right:1px solid var(--line-soft);border-top:1px solid var(--line-soft)}
+.key b{display:block;font-family:var(--px);font-size:10px;letter-spacing:.05em;margin-bottom:8px}
+.key p{font-family:var(--sans);font-size:12px;line-height:1.55;color:var(--dim)}
+.k1{color:var(--fail)} .k2{color:var(--idle)} .k3{color:var(--ok)}
+.k4{color:var(--tok)} .k5{color:var(--dim)}
+
+.foot{margin-top:56px;border-top:1px solid var(--line);padding-top:24px;
+  font-family:var(--px);font-size:9px;letter-spacing:.16em;color:var(--faint);line-height:2}
+
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="mark">AGENT IDOL<span>DESKTOP · IDLE / CLICKER · CONCEPT</span></div>
+
+  <div class="hook">
+    <h1>YOU ARE THE<br><u>BOTTLENECK</u></h1>
+    <p>You don't write the code. Six agents do that. You're the one thing standing between them and shipping — and <b>there is only one of you.</b></p>
+  </div>
+
+  <div class="strip">
+    <div><canvas class="sprite" data-agent="starter" data-state="run"  width="56" height="56"></canvas><s>RUNNING</s></div>
+    <div><canvas class="sprite" data-agent="senior"  data-state="ok"   width="56" height="56"></canvas><s>SHIPPED</s></div>
+    <div><canvas class="sprite" data-agent="starter" data-state="fail" width="56" height="56"></canvas><s>STUCK</s></div>
+    <div><canvas class="sprite" data-agent="elite"   data-state="idle" width="56" height="56"></canvas><s>IDLE</s></div>
+  </div>
+
+  <div class="beats">
+    <div class="beat">
+      <h5 class="b-1">THEY WORK</h5>
+      <p>Each agent fills a bar, then either ships a slice of the project or gets stuck on something idiotic and asks you about it.</p>
+    </div>
+    <div class="beat">
+      <h5 class="b-2">YOU UNBLOCK</h5>
+      <p>One click. That's the entire input. Hire more agents and the clicks arrive faster than you can serve them.</p>
+    </div>
+    <div class="beat">
+      <h5 class="b-3">THE METER RUNS</h5>
+      <p>Contracts lose value every second. Every running agent burns credits. Miss the balance and you're in debt — that's how you lose.</p>
+    </div>
+  </div>
+
+  <div class="sect">
+    <div class="sect-h">ONE SCREEN, TWO GESTURES</div>
+    <p class="sect-p">Click anything red. Drag anything amber onto a project — no seats, pile on as many as you like. Everything else is watching bars fill and deciding who's worth the credits.</p>
+    <div class="stage" id="stage1"><div class="fit" id="fit1">
+    <div class="game">
+
+      <!-- TOP -->
+      <div class="topbar">
+        <div class="money" id="bank">$18,430<span>MONEY</span></div>
+        <div class="credits">
+          <div class="cred-top"><span class="cred-l">CREDITS</span><span class="cred-v">LOW</span></div>
+          <div class="cred-bar"><i></i><u></u></div>
+        </div>
+        <div class="buy">BUY MORE</div>
+        <div class="spacer"></div>
+        <div class="pause">❚❚</div>
+      </div>
+
+      <!-- PODS -->
+      <div class="pods">
+
+        <!-- 1 -->
+        <div class="pod hot">
+          <div class="pod-h">
+            <div class="pod-r1"><div class="pod-name">BILLING MIGRATION</div>
+              <span class="pod-diff"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span>
+              <div class="pod-pay tick" data-from="24100" data-rate="92" style="margin-left:auto">$24,100</div></div>
+            <div class="segs">
+              <i style="width:9%"></i><i class="big" style="width:16%"></i><i style="width:5%"></i>
+              <i style="width:4%"></i><i class="big" style="width:15%"></i><i style="width:5%"></i>
+              <i style="width:4%"></i><i style="width:5%"></i><span class="rest"></span>
+            </div>
+            <div class="dial"><b>SLOW</b><b>NORMAL</b><b class="on hi">FAST</b></div>
+          </div>
+          <div class="desks">
+            <div class="station">
+              <div class="bub">tabs or spaces?</div>
+              <canvas class="sprite" data-agent="starter" data-state="fail" width="72" height="72"></canvas>
+              <div class="desk"></div>
+              <div class="plate"><b>PIXEL</b></div>
+              <div class="runbar fail"><i></i></div>
+            </div>
+            <div class="station">
+              <canvas class="sprite" data-agent="senior" data-state="run" width="72" height="72"></canvas>
+              <div class="desk"></div>
+              <div class="plate"><b>NIA</b></div>
+              <div class="runbar"><i style="width:44%"></i></div>
+            </div>
+            <div class="station">
+              <div class="pop">+15%</div>
+              <canvas class="sprite" data-agent="elite" data-state="ok" width="72" height="72"></canvas>
+              <div class="desk"></div>
+              <div class="plate"><b>HARU-7</b></div>
+              <div class="runbar ok"><i></i></div>
+            </div>
+            <div class="empty"><div class="empty-slot">DROP<br>HERE</div></div>
+          </div>
+        </div>
+
+        <!-- 2 -->
+        <div class="pod">
+          <div class="pod-h">
+            <div class="pod-r1"><div class="pod-name">DASHBOARD RETAINER</div>
+              <span class="pod-diff"><i class="on"></i><i></i><i></i><i></i><i></i></span>
+              <div class="pod-pay" style="margin-left:auto">$1,200</div></div>
+            <div class="segs">
+              <i style="width:5%"></i><i style="width:4%"></i><i style="width:5%"></i><i style="width:4%"></i>
+              <i style="width:5%"></i><i style="width:4%"></i><i style="width:5%"></i><i style="width:4%"></i>
+              <i style="width:5%"></i><span class="rest"></span>
+            </div>
+            <div class="dial"><b class="on">SLOW</b><b>NORMAL</b><b>FAST</b></div>
+          </div>
+          <div class="desks">
+            <div class="station">
+              <canvas class="sprite" data-agent="starter" data-state="run" width="72" height="72"></canvas>
+              <div class="desk"></div>
+              <div class="plate"><b>TAM</b></div>
+              <div class="runbar"><i style="width:30%"></i></div>
+            </div>
+            <div class="empty"><div class="empty-slot">DROP<br>HERE</div></div>
+          </div>
+        </div>
+
+        <!-- 3 -->
+        <div class="pod hot">
+          <div class="pod-h">
+            <div class="pod-r1"><div class="pod-name">NUXT UPGRADE</div>
+              <span class="pod-diff hard"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span>
+              <div class="pod-pay low tick" data-from="3050" data-rate="240" style="margin-left:auto">$3,050</div></div>
+            <div class="segs">
+              <i style="width:4%"></i><i style="width:5%"></i><i style="width:4%"></i><i style="width:5%"></i>
+              <i style="width:4%"></i><i style="width:5%"></i><i style="width:4%"></i><i style="width:5%"></i>
+              <i style="width:4%"></i><i style="width:5%"></i><i style="width:4%"></i><i style="width:5%"></i>
+              <i style="width:4%"></i><i style="width:5%"></i><i style="width:5%"></i><i style="width:5%"></i>
+              <i style="width:5%"></i><i style="width:5%"></i><span class="rest"></span>
+            </div>
+            <div class="dial"><b>SLOW</b><b>NORMAL</b><b class="on hi">FAST</b></div>
+          </div>
+          <div class="desks swarm">
+            <div class="station">
+              <div class="bub">is it done?</div>
+              <canvas class="sprite" data-agent="elite" data-state="fail" width="46" height="46"></canvas>
+              <div class="desk"></div>
+              <div class="plate"><b>SORA</b></div>
+              <div class="runbar fail"><i></i></div>
+            </div>
+            <div class="station">
+              <canvas class="sprite" data-agent="senior" data-state="run" width="46" height="46"></canvas>
+              <div class="desk"></div>
+              <div class="plate"><b>MIRA</b></div>
+              <div class="runbar"><i style="width:82%"></i></div>
+            </div>
+            <div class="station">
+              <div class="pop">+9%</div>
+              <canvas class="sprite" data-agent="senior" data-state="ok" width="46" height="46"></canvas>
+              <div class="desk"></div>
+              <div class="plate"><b>KODA</b></div>
+              <div class="runbar ok"><i></i></div>
+            </div>
+            <div class="station">
+              <canvas class="sprite" data-agent="starter" data-state="run" width="46" height="46"></canvas>
+              <div class="desk"></div>
+              <div class="plate"><b>ECHO</b></div>
+              <div class="runbar"><i style="width:18%"></i></div>
+            </div>
+            <div class="station">
+              <div class="bub">rebase?</div>
+              <canvas class="sprite" data-agent="starter" data-state="fail" width="46" height="46"></canvas>
+              <div class="desk"></div>
+              <div class="plate"><b>VEX</b></div>
+              <div class="runbar fail"><i></i></div>
+            </div>
+            <div class="station">
+              <canvas class="sprite" data-agent="starter" data-state="run" width="46" height="46"></canvas>
+              <div class="desk"></div>
+              <div class="plate"><b>BYTE-9</b></div>
+              <div class="runbar"><i style="width:61%"></i></div>
+            </div>
+            <div class="station">
+              <canvas class="sprite" data-agent="elite" data-state="run" width="46" height="46"></canvas>
+              <div class="desk"></div>
+              <div class="plate"><b>LUMA</b></div>
+              <div class="runbar"><i style="width:37%"></i></div>
+            </div>
+            <div class="empty"><div class="empty-slot">DROP<br>HERE</div></div>
+          </div>
+        </div>
+
+        <!-- 4 : open slot -->
+        <div class="pod open"><div>EMPTY<br>DRAG A PROJECT HERE</div></div>
+
+      </div>
+
+      <!-- TRAY -->
+      <div class="tray">
+        <div class="tray-half">
+          <div class="tray-h a">DOING NOTHING</div>
+          <div class="tray-row">
+            <div class="bcard">
+              <canvas class="sprite" data-agent="starter" data-state="idle" width="52" height="52"></canvas>
+              <b>ECHO</b>
+            </div>
+            <div class="bcard">
+              <canvas class="sprite" data-agent="senior" data-state="idle" width="52" height="52"></canvas>
+              <b>KODA</b>
+            </div>
+          </div>
+        </div>
+
+        <div class="tray-half">
+          <div class="tray-h b">PROJECTS AVAILABLE</div>
+          <div class="tray-row">
+            <div class="pcard great">
+              <div class="pcard-n">Flaky test triage</div>
+              <div class="pcard-p">$6,400</div>
+              <div class="diffrow"><em>DIFFICULTY</em>
+                <span class="pips"><i class="on"></i><i></i><i></i><i></i><i></i></span>
+              </div>
+              <div class="pcard-f">SMALL JOB</div>
+            </div>
+            <div class="pcard">
+              <div class="pcard-n">Payments SDK rewrite</div>
+              <div class="pcard-p">$31,000</div>
+              <div class="diffrow"><em>DIFFICULTY</em>
+                <span class="pips hard"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span>
+              </div>
+              <div class="pcard-f">HUGE JOB</div>
+            </div>
+            <div class="pcard">
+              <div class="pcard-n">Analytics event audit</div>
+              <div class="pcard-p">$12,800</div>
+              <div class="diffrow"><em>DIFFICULTY</em>
+                <span class="pips"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span>
+              </div>
+              <div class="pcard-f">MEDIUM JOB</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div></div></div>
+    <div class="keys">
+      <div class="key"><b class="k1">RED · CLICK IT</b><p>An agent stuck on a daft question. One tap and it tries again.</p></div>
+      <div class="key"><b class="k2">AMBER · DRAG IT</b><p>An agent doing nothing. Drop it on any project you like.</p></div>
+      <div class="key"><b class="k3">GREEN · MONEY</b><p>The payout, counting down in front of you the whole time you take.</p></div>
+      <div class="key"><b class="k4">BLUE · CREDITS</b><p>Your fuel. Faster models drain it quicker. Empty means everyone stops.</p></div>
+      <div class="key"><b class="k5">GREY · IGNORE</b><p>Working fine. If the screen is grey, put the kettle on.</p></div>
+    </div>
+  </div>
+
+  <div class="foot">AGENT IDOL · WORK IN PROGRESS<br>BUILT IN GODOT · 640×360 PIXEL GRID</div>
+
+</div>
+
+<script>
+
+const PAL={'1':'#0A0C0E','2':'#353B42','3':'#4B525A','4':'#646C75','5':'#1A1E22','.':null};
+const STATE_COL={run:'#5F807A',ok:'#78906C',fail:'#A5605A',idle:'#AC9463'};
+const STARTER=[
+"................","................","....111111 1....","...12222222 1...",
+"...1255555521...","...1259955521...","...1255555521...","...12222222 1...",
+"....11222211....","..1111222211 1..",".1222222222221..",".1233333333321..",
+".1239999993321..",".1233333333321..",".1222222222221..",".11111111111 1.."];
+const SENIOR=[
+"................",".....1111111....","....122222221...","....125555521...",
+"....125995521...","....125555521...","....125555521...","....122222221...",
+".....1122211....","...111222221 1..","..12222222222 1.","..12333333333 1.",
+"..12399999933 1.","..12333333333 1.","..12222222222 1.","..1111111111 11."];
+const ELITE=[
+"........11......","......1199 1....","....1111111 1...","...12222222 1...",
+"...1255555521...","...1259995521...","...1255555521...","...1255555521...",
+"...12222222 1...","....11222211....","..1111222211 1..",".14222222222 41.",
+".14399999999 41.",".14333333333 41.",".14222222222 41.",".11111111111 1.."];
+const SPRITES={starter:STARTER,senior:SENIOR,elite:ELITE};
+function draw(cv){
+  const g=SPRITES[cv.dataset.agent]||STARTER;
+  const accent=STATE_COL[cv.dataset.state]||STATE_COL.run;
+  const ctx=cv.getContext('2d'),cols=16,rows=16;
+  const s=Math.floor(Math.min(cv.width/cols,cv.height/rows));
+  const ox=Math.floor((cv.width-cols*s)/2),oy=Math.floor((cv.height-rows*s)/2);
+  ctx.clearRect(0,0,cv.width,cv.height);
+  for(let y=0;y<rows;y++){
+    const line=(g[y]||'').padEnd(cols,'.');
+    for(let x=0;x<cols;x++){
+      const ch=line[x];
+      let col= ch==='9'?accent : (ch===' '?PAL['1']:PAL[ch]);
+      if(!col) continue;
+      ctx.fillStyle=col; ctx.fillRect(ox+x*s,oy+y*s,s,s);
+    }
+  }
+  ctx.globalAlpha= cv.dataset.state==='idle'?.07:.18;
+  ctx.fillStyle=accent; ctx.fillRect(ox+4*s,oy+4*s,8*s,3*s); ctx.globalAlpha=1;
+}
+document.querySelectorAll('canvas.sprite').forEach(draw);
+
+// payouts visibly tick down — no "-$/s" label needed
+const fmt = n => '$' + Math.max(0,Math.round(n)).toLocaleString();
+document.querySelectorAll('.tick').forEach(el=>{
+  let v = parseFloat(el.dataset.from), r = parseFloat(el.dataset.rate);
+  setInterval(()=>{ v -= r/10; if(v<0) v = parseFloat(el.dataset.from); el.textContent = fmt(v); },100);
+});
+
+
+function fit(sid,fid){
+  const st=document.getElementById(sid), inn=document.getElementById(fid);
+  if(!st||!inn) return;
+  const sc=Math.min(1, st.clientWidth/1280);
+  inn.style.transform=`scale(${sc})`;
+  st.style.height=(720*sc)+'px';
+}
+function fitAll(){ fit('stage1','fit1'); }
+fitAll(); window.addEventListener('resize', fitAll);
+</script>
+</body>
+</html>
