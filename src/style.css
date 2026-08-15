@@ -1,0 +1,123 @@
+/* Self-hosted fonts. We declare the faces ourselves against the woff2 files
+   shipped in the @fontsource npm packages, rather than @import-ing each
+   package's generated CSS, because that generated CSS hardcodes
+   `font-display: swap` and the tech stack doc requires `block`.
+   Swap would flash a fallback in metrics wildly different from Silkscreen and
+   visibly reflow the pixel UI; block holds the paint instead.
+   Vite rewrites these bare specifiers to local hashed assets at build time —
+   no Google Fonts CDN, no remote font request ever leaves the page. */
+@font-face {
+  font-family: "Silkscreen";
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url("@fontsource/silkscreen/files/silkscreen-latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Silkscreen";
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url("@fontsource/silkscreen/files/silkscreen-latin-700-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url("@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 500;
+  font-display: block;
+  src: url("@fontsource/jetbrains-mono/files/jetbrains-mono-latin-500-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url("@fontsource/jetbrains-mono/files/jetbrains-mono-latin-700-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url("@fontsource/inter/files/inter-latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 500;
+  font-display: block;
+  src: url("@fontsource/inter/files/inter-latin-500-normal.woff2") format("woff2");
+}
+
+:root {
+  --bg: #0d0f11;
+  --floor: #131619;
+  --pod: #191d21;
+  --pod-2: #1e2227;
+  --line: #282d33;
+  --line-soft: #20242a;
+  --fg: #c6cbd1;
+  --fg-2: #878e96;
+  --dim: #5a616a;
+  --faint: #383e45;
+  --run: #5f807a; /* muted sea  — agent running */
+  --ok: #78906c; /* sage       — success, money */
+  --fail: #a5605a; /* dusty clay — blocked, click it */
+  --idle: #ac9463; /* brass      — idle, drag it */
+  --tok: #6b8598; /* slate      — credits */
+  --px: "Silkscreen", "JetBrains Mono", monospace;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  --sans: "Inter", system-ui, sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--sans);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+}
+
+#stage {
+  position: relative;
+  width: 1280px;
+  height: 720px;
+  background: var(--floor);
+  overflow: hidden;
+  flex: none;
+}
