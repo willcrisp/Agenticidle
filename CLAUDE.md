@@ -68,7 +68,16 @@ Each has a stated reason in the tech stack doc.
   URLs, used as `<img>` with `image-rendering: pixelated`. Twelve images total.
   Do not run the pixel-plot loop per sprite per frame as the mockup does.
 - One `#stage` at exactly 1280×720, `transform: scale(n)` where n is
-  `Math.floor(min(vw/1280, vh/720))`. Integer only, or the pixel grid smears.
+  `min(vw/1280, vh/720)` — fit to viewport, aspect preserved, never stretched.
+  **This replaces the original integer-only rule.** Integer-only needs a
+  2560×1440 *viewport* to reach scale 2, which browser chrome puts out of reach
+  even on a 1440p monitor, so every real display floored to 1 and the game
+  rendered as a small island in a sea of black. The scale lives in
+  `src/render/stage.ts` as `stageScale()` and input must use it — a second copy
+  of the formula makes drags track at the wrong speed.
+- Sprite CSS sizes are still whole multiples of 16 (64px = 4×, 48px = 3×). At
+  a 1.5× stage scale that lands on 96px = 6×, so 1080p is pixel-perfect; other
+  window sizes trade some evenness for filling the screen.
 - Self-host Silkscreen, JetBrains Mono and Inter as woff2.
 
 ## Interface constraints
@@ -103,7 +112,17 @@ player has to be taught is a design failure, not a feature.
 
 ## Where the build is
 
-Steps 1 and 6 of the build order are done: the sim core exists, is seeded and
-deterministic, and has a headless balance harness with 23 passing assertions.
+Steps 1–4 and 6 are done. The game is playable end to end:
 
-Steps 2–5 and 7–9 are not started. See `KICKOFF.md`.
+- **1, 6** — sim core, seeded and deterministic, plus the headless balance
+  harness. 23 passing assertions.
+- **2** — the floor. `src/render/` builds the shell once and binds it to live
+  `RunState` every frame.
+- **3** — the loop. Fixed 30Hz sim step, decoupled render, pause.
+- **4** — the two gestures. Click to retry, drag to assign/accept.
+
+Steps 5 and 7–9 are not started: the shop, the anime.js pass, audio, the run
+summary and the tutorial ramp.
+
+See `README.md` for how to run and play it, and `docs/archive/` for the
+planning documents those completed steps were built from.

@@ -21,6 +21,7 @@
 
 import type { RunState } from "../sim/state";
 import type { Refs } from "../render/shell";
+import { stageScale } from "../render/stage";
 import { retryAgent, assignAgent, acceptProject, setDial, buyCreditBlock } from "../sim/tick";
 
 const DRAG_THRESHOLD_PX = 4;
@@ -45,9 +46,9 @@ type DragState =
       boardIndex: number;
     };
 
-function getScale(): number {
-  return Math.max(1, Math.floor(Math.min(window.innerWidth / 1280, window.innerHeight / 720)));
-}
+// Scale comes from the stage module so there is exactly one copy of the
+// formula. A second copy that drifts makes dragged nodes track the cursor at
+// the wrong speed.
 
 function isDial(v: string | undefined): v is "slow" | "normal" | "fast" {
   return v === "slow" || v === "normal" || v === "fast";
@@ -119,7 +120,7 @@ export function mountGestures(state: RunState, refs: Refs): () => void {
       activeDrag.el.classList.add("is-dragging");
     }
 
-    const scale = getScale();
+    const scale = stageScale();
     const dx = rawDx / scale;
     const dy = rawDy / scale;
     activeDrag.el.style.transform = `translate(${dx}px, ${dy}px)`;
