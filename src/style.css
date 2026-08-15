@@ -167,6 +167,10 @@ button {
   display: block;
   font-weight: 400;
 }
+/* Negative cash is still not red — red means click it. */
+.money-v.is-negative {
+  color: var(--fg-2);
+}
 .money span {
   display: block;
   font-size: 9px;
@@ -264,7 +268,7 @@ button {
   border-color: var(--fail);
 }
 .pod-h {
-  padding: 12px 14px 11px;
+  padding: 10px 14px 9px;
   border-bottom: 1px solid var(--line-soft);
   background: var(--pod-2);
 }
@@ -298,7 +302,7 @@ button {
   display: flex;
   gap: 1px;
   height: 9px;
-  margin-top: 11px;
+  margin-top: 8px;
   background: #0d1114;
   border: 1px solid #0d1114;
 }
@@ -320,7 +324,7 @@ button {
 .dial {
   display: flex;
   gap: 3px;
-  margin-top: 11px;
+  margin-top: 8px;
 }
 .dial b {
   font-family: var(--px);
@@ -347,6 +351,7 @@ button {
 /* agents — no seats, they just pile in */
 .desks {
   flex: 1;
+  min-height: 0;
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
@@ -362,11 +367,14 @@ button {
   flex-direction: column;
   align-items: center;
   position: relative;
-  padding-bottom: 10px;
+  padding-bottom: 8px;
 }
+/* Pixel art scales by whole numbers only — 16px source at 4x. A non-integer
+   size (the mockup's 72px box, which drew its art at 4x inside itself) smears
+   the grid. */
 .station .sprite {
-  width: 72px;
-  height: 72px;
+  width: 64px;
+  height: 64px;
   margin: 0 auto;
 }
 .desks.swarm .station {
@@ -374,8 +382,8 @@ button {
   padding-bottom: 6px;
 }
 .desks.swarm .station .sprite {
-  width: 46px;
-  height: 46px;
+  width: 48px; /* 3x */
+  height: 48px;
 }
 .desks.swarm .desk {
   width: 54px;
@@ -450,7 +458,7 @@ button {
   margin-top: -4px;
 }
 .plate {
-  margin-top: 8px;
+  margin-top: 6px;
   text-align: center;
 }
 .plate b {
@@ -465,7 +473,7 @@ button {
   width: 76px;
   height: 6px;
   background: #0d1114;
-  margin: 8px auto 0;
+  margin: 6px auto 0;
   position: relative;
   border: 1px solid #0d1114;
 }
@@ -596,8 +604,8 @@ button {
   padding: 8px 4px 9px;
 }
 .tray-idle .station .sprite {
-  width: 52px;
-  height: 52px;
+  width: 48px; /* 3x */
+  height: 48px;
   margin: 0 auto;
 }
 .tray-idle .station .plate b {
