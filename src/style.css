@@ -759,3 +759,314 @@ button {
   font-size: 24px;
   letter-spacing: 0.05em;
 }
+
+/* ---- WP-7: PROCUREMENT (the shop) ---------------------------------------
+   Lives inside #stage so it scales with the pixel grid. Sits above the floor
+   and below the pause overlay: pausing must always be the thing you can see.
+   No new colours — tokens stay credit-blue, models stay money-green, and
+   anything you cannot afford falls back to the same grey as everything else
+   that wants ignoring. */
+.shop-scrim {
+  display: none;
+  position: absolute;
+  inset: 0;
+  z-index: 800;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+}
+.shop-scrim.is-visible {
+  display: flex;
+}
+.shop {
+  width: 880px;
+  background: var(--pod);
+  border: 1px solid var(--line);
+  font-family: var(--mono);
+}
+.shop-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--pod-2);
+}
+.shop-title {
+  font-family: var(--px);
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  color: var(--fg);
+}
+.shop-roster {
+  font-family: var(--px);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: var(--faint);
+  margin-left: auto;
+}
+.shop-close {
+  font-family: var(--mono);
+  font-size: 18px;
+  line-height: 1;
+  color: var(--dim);
+  padding: 0 4px;
+}
+.shop-cols {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+}
+.shop-col {
+  padding: 14px 16px 18px;
+}
+.shop-col + .shop-col {
+  border-left: 1px solid var(--line);
+}
+.shop-h {
+  font-family: var(--px);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  margin-bottom: 8px;
+}
+.shop-h.tok {
+  color: var(--tok);
+}
+.shop-h.ok {
+  color: var(--ok);
+}
+.shop-note {
+  font-family: var(--sans);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--dim);
+  margin-bottom: 12px;
+  min-height: 50px;
+}
+.shop-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--line);
+  background: #161a1d;
+  padding: 10px 12px;
+}
+.shop-row + .shop-row {
+  margin-top: 7px;
+}
+.shop-row-n {
+  font-family: var(--px);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--fg);
+}
+.shop-row.tok {
+  border-color: color-mix(in srgb, var(--tok) 55%, var(--line));
+}
+.shop-row.tok .shop-row-n {
+  color: var(--tok);
+}
+.shop-row-p {
+  margin-left: auto;
+  font-family: var(--px);
+  font-size: 13px;
+  color: var(--ok);
+}
+.shop-row.model .sprite {
+  width: 48px; /* 3x */
+  height: 48px;
+  flex: none;
+}
+.shop-row-body {
+  min-width: 0;
+  flex: 1;
+}
+.shop-row-top {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.shop-owned {
+  font-family: var(--px);
+  font-size: 10px;
+  color: var(--idle);
+}
+.shop-stats {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  color: var(--fg-2);
+  margin-top: 6px;
+}
+.shop-blurb {
+  font-family: var(--sans);
+  font-size: 11px;
+  color: var(--dim);
+  margin-top: 5px;
+}
+.shop-buy {
+  flex: none;
+  font-family: var(--px);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  padding: 11px 13px;
+  border: 1px solid var(--ok);
+  color: var(--ok);
+  background: #161c15;
+  text-align: center;
+  min-width: 128px;
+}
+.shop-row.is-locked .shop-row-n,
+.shop-row.is-locked .sprite {
+  opacity: 0.6;
+}
+.shop-row.is-unaffordable .shop-buy {
+  border-color: var(--faint);
+  color: var(--faint);
+  background: #141719;
+}
+/* The column you asked for is lifted; the other stays available but quiet. */
+.shop-col:not(.is-focus) .shop-row {
+  opacity: 0.9;
+}
+
+/* ---- WP-8: right-click inspect ------------------------------------------
+   Read-only. Nothing in here is a target, so it takes no pointer events at
+   all — a click always lands on the floor behind it and dismisses this. */
+.inspect {
+  display: none;
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 900;
+  width: 286px;
+  background: #14181b;
+  border: 1px solid var(--line);
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.35);
+  font-family: var(--mono);
+  pointer-events: none;
+  padding-bottom: 2px;
+}
+.inspect.is-visible {
+  display: block;
+}
+.inspect-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 9px 11px 8px;
+  border-bottom: 1px solid var(--line-soft);
+  background: var(--pod-2);
+}
+.inspect-title {
+  font-family: var(--px);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.inspect-tag {
+  margin-left: auto;
+  flex: none;
+  font-family: var(--px);
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  color: var(--fg-2);
+}
+.inspect-sprite {
+  width: 48px; /* 3x */
+  height: 48px;
+  margin: 10px auto 0;
+}
+.inspect-pips {
+  display: flex;
+  gap: 3px;
+  justify-content: center;
+  margin-top: 10px;
+}
+.inspect-pips i {
+  width: 13px;
+  height: 8px;
+  background: #22272c;
+  display: block;
+}
+.inspect-pips i.on {
+  background: var(--idle);
+}
+.inspect-pips.hard i.on {
+  background: var(--fail);
+}
+.inspect-rows {
+  padding: 9px 11px 4px;
+}
+.inspect-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 3px 0;
+}
+.inspect-row.is-gap {
+  height: 7px;
+  padding: 0;
+  border-top: 1px solid var(--line-soft);
+  margin: 6px 0 5px;
+}
+.inspect-row em {
+  font-style: normal;
+  font-family: var(--px);
+  font-size: 8px;
+  letter-spacing: 0.06em;
+  color: var(--faint);
+}
+.inspect-row b {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--fg);
+  white-space: nowrap;
+}
+.inspect-hint {
+  font-family: var(--px);
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  color: var(--faint);
+  padding: 7px 11px 9px;
+  border-top: 1px solid var(--line-soft);
+  margin-top: 5px;
+}
+
+/* Five colours, five meanings — the inspect panel borrows them, it does not
+   invent any. */
+.t-money {
+  color: var(--ok) !important;
+}
+.t-credit {
+  color: var(--tok) !important;
+}
+.t-idle {
+  color: var(--idle) !important;
+}
+.t-fail {
+  color: var(--fail) !important;
+}
+.t-run {
+  color: var(--run) !important;
+}
+.t-dim {
+  color: var(--dim) !important;
+}
+
+/* The topbar's second button. Money-green, because what it spends is money —
+   the same rule that makes BUY MORE credit-blue. */
+.hire {
+  font-family: var(--px);
+  font-size: 12px;
+  padding: 12px 18px;
+  border: 1px solid var(--ok);
+  color: var(--ok);
+  background: #151a14;
+  line-height: 1;
+  flex: none;
+}

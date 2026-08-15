@@ -157,25 +157,102 @@ canvas{display:block;width:100%;image-rendering:auto}
   var DEFAULT_CONFIG = {
     runSeconds: 1800,
     tickHz: 30,
-    startingCash: 5e3,
+    startingCash: 2500,
     startingCredits: 900,
-    startingRoster: ["starter", "starter", "senior"],
+    // You start with two cheap bodies and no licence for anything better. The
+    // whole ladder — more hands, then better models, then bigger contracts — is
+    // bought with money earned inside the run.
+    startingRoster: ["starter", "starter"],
     maxRoster: 24,
     podCount: 4,
     boardSlots: 3,
     boardRefillSeconds: 4,
     classes: {
-      starter: { runWork: 6, oneShot: 0.62, cost: 2200, burnMult: 1 },
-      senior: { runWork: 9, oneShot: 0.76, cost: 6500, burnMult: 1.3 },
-      elite: { runWork: 15, oneShot: 0.88, cost: 17e3, burnMult: 1.7 }
+      starter: {
+        label: "STARTER",
+        blurb: "Cheap hands. Breaks often, costs almost nothing to run.",
+        runWork: 6,
+        oneShot: 0.62,
+        cost: 1400,
+        burnMult: 1,
+        licenceCost: 0
+      },
+      senior: {
+        label: "SENIOR",
+        blurb: "Longer runs, fewer questions. Costs more to keep running.",
+        runWork: 9,
+        oneShot: 0.76,
+        cost: 5200,
+        burnMult: 1.3,
+        licenceCost: 4500
+      },
+      elite: {
+        label: "ELITE",
+        blurb: "Barely ever blocks. Burns tokens like a furnace.",
+        runWork: 15,
+        oneShot: 0.88,
+        cost: 15e3,
+        burnMult: 1.7,
+        licenceCost: 18e3
+      }
     },
+    // The board ramps. Only the two smallest sizes exist at the start of a run;
+    // the rest unlock on the clock OR on deliveries banked, whichever comes
+    // first, so a fast opening is rewarded with a bigger board sooner. The
+    // weights then lerp from `weightEarly` to `weightLate` across the run, which
+    // is what retires the quick fixes rather than a hard cutoff.
     sizes: {
-      small: { work: 50, payoutPerWork: 22 },
-      medium: { work: 100, payoutPerWork: 26 },
-      large: { work: 200, payoutPerWork: 30 },
-      huge: { work: 400, payoutPerWork: 34 }
+      tiny: {
+        label: "QUICK FIX",
+        work: 16,
+        payoutPerWork: 18,
+        difficultyBias: -0.9,
+        weightEarly: 7,
+        weightLate: 0.5,
+        unlockAtRunFraction: 0,
+        unlockAtDeliveries: 0
+      },
+      small: {
+        label: "SMALL JOB",
+        work: 45,
+        payoutPerWork: 21,
+        difficultyBias: -0.35,
+        weightEarly: 4,
+        weightLate: 1.5,
+        unlockAtRunFraction: 0,
+        unlockAtDeliveries: 0
+      },
+      medium: {
+        label: "MEDIUM JOB",
+        work: 110,
+        payoutPerWork: 24,
+        difficultyBias: 0,
+        weightEarly: 0.6,
+        weightLate: 4,
+        unlockAtRunFraction: 0.1,
+        unlockAtDeliveries: 5
+      },
+      large: {
+        label: "LARGE JOB",
+        work: 240,
+        payoutPerWork: 27,
+        difficultyBias: 0.4,
+        weightEarly: 0.2,
+        weightLate: 3,
+        unlockAtRunFraction: 0.28,
+        unlockAtDeliveries: 14
+      },
+      huge: {
+        label: "FLAGSHIP",
+        work: 500,
+        payoutPerWork: 30,
+        difficultyBias: 0.9,
+        weightEarly: 0.1,
+        weightLate: 1.5,
+        unlockAtRunFraction: 0.5,
+        unlockAtDeliveries: 26
+      }
     },
-    sizeWeights: { small: 3, medium: 4, large: 2, huge: 1 },
     difficulty: { penaltyPerPip: 0.09, floor: 0.15 },
     decay: { perSecond: 22e-4, floor: 0.12, sizeDamping: 0.35 },
     dials: {
@@ -204,13 +281,15 @@ canvas{display:block;width:100%;image-rendering:auto}
     escalation: {
       shape: "linear",
       payoutEndMult: 3.2,
-      difficultyStart: 1.4,
+      difficultyStart: 1,
       difficultyEnd: 4.6,
       steps: 5
     },
     failedRunsCostCredits: true,
     discardOverflow: false
   };
+  var SIZE_ORDER = ["tiny", "small", "medium", "large", "huge"];
+  var CLASS_ORDER = ["starter", "senior", "elite"];
   function cloneConfig(c) {
     return JSON.parse(JSON.stringify(c));
   }
@@ -312,7 +391,10 @@ canvas{display:block;width:100%;image-rendering:auto}
     const rng = new Rng(seed);
     nextAgentId = 1;
     nextProjectId = 1;
-    const agents = cfg.startingRoster.map((cls) => makeAgent(cls, rng));
+    const agents = cfg.startingRoster.map((cls) => makeAgent(cls, rng, 0));
+    const unlockedClasses = CLASS_ORDER.filter(
+      (c) => cfg.classes[c].licenceCost <= 0 || cfg.startingRoster.includes(c)
+    );
     const state = {
       cfg,
       rng,
@@ -324,6 +406,7 @@ canvas{display:block;width:100%;image-rendering:auto}
       creditsBought: 0,
       deliveries: 0,
       agents,
+      unlockedClasses,
       pods: new Array(cfg.podCount).fill(null),
       board: [],
       boardRefillAt: 0,
@@ -336,7 +419,7 @@ canvas{display:block;width:100%;image-rendering:auto}
     for (let i = 0; i < cfg.boardSlots; i++) state.board.push(spawnProject(state));
     return state;
   }
-  function makeAgent(cls, rng) {
+  function makeAgent(cls, rng, hiredAt = 0) {
     return {
       id: nextAgentId++,
       name: NAMES[Math.floor(rng.next() * NAMES.length)],
@@ -345,7 +428,11 @@ canvas{display:block;width:100%;image-rendering:auto}
       pod: null,
       progress: 0,
       blockedTime: 0,
-      blockedSince: 0
+      blockedSince: 0,
+      hiredAt,
+      runsGreen: 0,
+      runsRed: 0,
+      workDelivered: 0
     };
   }
   function escalationT(state) {
@@ -360,13 +447,32 @@ canvas{display:block;width:100%;image-rendering:auto}
         return raw;
     }
   }
+  function sizeUnlocked(state, size) {
+    const sc = state.cfg.sizes[size];
+    const byClock = state.t >= sc.unlockAtRunFraction * state.cfg.runSeconds;
+    const byWork = state.deliveries >= sc.unlockAtDeliveries;
+    return byClock || byWork;
+  }
+  function sizeWeightNow(state, size) {
+    if (!sizeUnlocked(state, size)) return 0;
+    const sc = state.cfg.sizes[size];
+    const k = escalationT(state);
+    return Math.max(0, sc.weightEarly + (sc.weightLate - sc.weightEarly) * k);
+  }
   function spawnProject(state) {
     const { cfg, rng } = state;
-    const size = rng.weighted(cfg.sizeWeights);
+    const weights = {};
+    let total = 0;
+    for (const s of SIZE_ORDER) {
+      const w = sizeWeightNow(state, s);
+      weights[s] = w;
+      total += w;
+    }
+    const size = total > 0 ? rng.weighted(weights) : SIZE_ORDER[0];
     const sc = cfg.sizes[size];
     const k = escalationT(state);
     const payoutMult = 1 + (cfg.escalation.payoutEndMult - 1) * k;
-    const diffTarget = cfg.escalation.difficultyStart + (cfg.escalation.difficultyEnd - cfg.escalation.difficultyStart) * k;
+    const diffTarget = cfg.escalation.difficultyStart + (cfg.escalation.difficultyEnd - cfg.escalation.difficultyStart) * k + sc.difficultyBias;
     const difficulty = Math.max(
       1,
       Math.min(5, Math.round(diffTarget + rng.range(-0.7, 0.7)))
@@ -407,7 +513,8 @@ canvas{display:block;width:100%;image-rendering:auto}
       agentBlockedSeconds: 0,
       peakRoster: cfg.startingRoster.length,
       moneySpentOnCredits: 0,
-      moneySpentOnAgents: 0
+      moneySpentOnAgents: 0,
+      moneySpentOnModels: 0
     };
   }
   function effectiveOneShot(cfg, cls, difficulty) {
@@ -421,6 +528,11 @@ canvas{display:block;width:100%;image-rendering:auto}
       credits.priceFloorMult,
       1 - state.deliveries * credits.priceDropPerDelivery
     );
+  }
+  function blockPrice(state, blockIndex) {
+    const block = state.cfg.credits.blocks[blockIndex];
+    if (!block) return 0;
+    return Math.round(block.price * tokenPriceMult(state));
   }
 
   // src/sim/tick.ts
@@ -462,20 +574,33 @@ canvas{display:block;width:100%;image-rendering:auto}
   function buyCreditBlock(s, blockIndex) {
     const block = s.cfg.credits.blocks[blockIndex];
     if (!block) return false;
-    const price = Math.round(block.price * tokenPriceMult(s));
+    const price = blockPrice(s, blockIndex);
     s.cash -= price;
     s.credits += block.tokens;
     s.creditsBought += block.tokens;
     s.telemetry.moneySpentOnCredits += price;
     return true;
   }
+  function classUnlocked(s, cls) {
+    return s.unlockedClasses.includes(cls);
+  }
+  function buyModelLicence(s, cls) {
+    if (classUnlocked(s, cls)) return false;
+    const price = s.cfg.classes[cls].licenceCost;
+    if (s.cash < price) return false;
+    s.cash -= price;
+    s.telemetry.moneySpentOnModels += price;
+    s.unlockedClasses.push(cls);
+    return true;
+  }
   function hireAgent(s, cls) {
     if (s.agents.length >= s.cfg.maxRoster) return false;
+    if (!classUnlocked(s, cls)) return false;
     const cost = s.cfg.classes[cls].cost;
     if (s.cash < cost) return false;
     s.cash -= cost;
     s.telemetry.moneySpentOnAgents += cost;
-    s.agents.push(makeAgent(cls, s.rng));
+    s.agents.push(makeAgent(cls, s.rng, s.t));
     s.telemetry.peakRoster = Math.max(s.telemetry.peakRoster, s.agents.length);
     return true;
   }
@@ -548,11 +673,14 @@ canvas{display:block;width:100%;image-rendering:auto}
         }
         p.workDone += delivered;
         p.slices.push(runWork);
+        a.runsGreen++;
+        a.workDelivered += delivered;
         s.telemetry.runsAttempted++;
         if (p.workDone >= p.work) deliver(s, a.pod);
       } else {
         a.state = "blocked";
         a.blockedSince = s.t;
+        a.runsRed++;
         s.blockedQueue.push(a.id);
         s.telemetry.runsFailed++;
         const bucket = Math.min(
@@ -668,7 +796,8 @@ canvas{display:block;width:100%;image-rendering:auto}
         assign: (id, pod) => assignAgent(s, id, pod),
         dial: (pod, d) => setDial(s, pod, d),
         buy: (b) => buyCreditBlock(s, b),
-        hire: (c) => hireAgent(s, c)
+        hire: (c) => hireAgent(s, c),
+        unlock: (c) => buyModelLicence(s, c)
       };
     }
   };
@@ -713,6 +842,23 @@ canvas{display:block;width:100%;image-rendering:auto}
   function harvestMode(s) {
     return s.t / s.cfg.runSeconds >= HARVEST_AT;
   }
+  function investLadder(s, api, order, reserve) {
+    const spare = s.cash - reserve;
+    for (const cls of order) {
+      const c = s.cfg.classes[cls];
+      if (classUnlocked(s, cls)) {
+        if (spare >= c.cost) {
+          api.hire(cls);
+          return;
+        }
+        continue;
+      }
+      if (spare >= c.licenceCost + c.cost) {
+        api.unlock(cls);
+        return;
+      }
+    }
+  }
   var balanced = {
     name: "Balanced (intended shape)",
     clicksPerSecond: 2.5,
@@ -737,11 +883,10 @@ canvas{display:block;width:100%;image-rendering:auto}
         }
       }
       keepCreditsTopped(s, api, harvest ? 20 : 70);
-      if (!harvest && s.t < s.cfg.runSeconds * 0.6) {
-        const spare = s.cash - 6e3;
-        if (spare > s.cfg.classes.elite.cost) api.hire("elite");
-        else if (spare > s.cfg.classes.senior.cost) api.hire("senior");
-        else if (spare > s.cfg.classes.starter.cost && s.agents.length < 8) api.hire("starter");
+      if (!harvest && s.t < s.cfg.runSeconds * 0.7) {
+        const order = ["elite", "senior"];
+        if (s.agents.length < 8) order.push("starter");
+        investLadder(s, api, order, 2500);
       }
     }
   };
@@ -769,8 +914,8 @@ canvas{display:block;width:100%;image-rendering:auto}
         if (s.pods[pod]) api.dial(pod, harvestMode(s) ? "fast" : "fast");
       }
       keepCreditsTopped(s, api, 60);
-      if (s.t < s.cfg.runSeconds * 0.5 && s.cash > s.cfg.classes.senior.cost + 8e3) {
-        api.hire("senior");
+      if (s.t < s.cfg.runSeconds * 0.5) {
+        investLadder(s, api, ["senior", "starter"], 6e3);
       }
     }
   };
@@ -789,8 +934,8 @@ canvas{display:block;width:100%;image-rendering:auto}
         if (s.pods[pod]) api.dial(pod, harvestMode(s) ? "fast" : "normal");
       }
       keepCreditsTopped(s, api, 80);
-      if (s.t < s.cfg.runSeconds * 0.7 && s.cash > s.cfg.classes.elite.cost + 5e3) {
-        api.hire("elite");
+      if (s.t < s.cfg.runSeconds * 0.7) {
+        investLadder(s, api, ["elite", "senior"], 4e3);
       }
     }
   };
@@ -809,8 +954,8 @@ canvas{display:block;width:100%;image-rendering:auto}
         if (s.pods[pod]) api.dial(pod, harvestMode(s) ? "fast" : "normal");
       }
       keepCreditsTopped(s, api, 70);
-      if (s.t < s.cfg.runSeconds * 0.7 && s.cash > s.cfg.classes.starter.cost + 4e3) {
-        api.hire("starter");
+      if (s.t < s.cfg.runSeconds * 0.7) {
+        investLadder(s, api, ["starter"], 4e3);
       }
     }
   };
@@ -973,18 +1118,38 @@ const LEVERS = [
     ["classes.elite.cost","Elite cost",1000,80000,500,money,"If elites never pay back, cheap coverage wins and the class ladder is dead."],
     ["classes.senior.burnMult","Senior burn ×",0.5,3,0.05,v=>v.toFixed(2)+"×",null],
     ["classes.elite.burnMult","Elite burn ×",0.5,3,0.05,v=>v.toFixed(2)+"×","Whether good agents also cost more to run changes the coverage lever entirely."],
+    ["classes.senior.licenceCost","Senior licence",0,40000,250,money,"One-off price of being allowed to hire the class at all. Set to 0 to hand it to the player at t=0."],
+    ["classes.elite.licenceCost","Elite licence",0,80000,500,money,"Too high and nobody ever sees an elite; too low and the class ladder costs nothing to climb."],
   ]],
   ["Projects", [
+    ["sizes.tiny.work","Quick fix work",4,80,2,v=>v+"s","The opening job. It has to be clearable by two starters in well under a minute or the first 90 seconds feel dead."],
     ["sizes.small.work","Small job work",10,200,5,v=>v+"s",null],
     ["sizes.medium.work","Medium job work",20,400,10,v=>v+"s",null],
     ["sizes.large.work","Large job work",50,800,10,v=>v+"s",null],
     ["sizes.huge.work","Huge job work",100,1600,25,v=>v+"s","Huge jobs late are the pro-rata trap. Watch what happens if you raise this."],
+    ["sizes.tiny.payoutPerWork","Quick fix $ per work",1,80,1,v=>"$"+v,null],
     ["sizes.small.payoutPerWork","Small $ per work",1,80,1,v=>"$"+v,null],
     ["sizes.medium.payoutPerWork","Medium $ per work",1,80,1,v=>"$"+v,null],
     ["sizes.large.payoutPerWork","Large $ per work",1,80,1,v=>"$"+v,null],
     ["sizes.huge.payoutPerWork","Huge $ per work",1,80,1,v=>"$"+v,null],
     ["difficulty.penaltyPerPip","Difficulty penalty / pip",0,0.22,0.005,pct,"Subtracted from one-shot per pip above 1. This is what makes quality matter separately from count."],
     ["difficulty.floor","One-shot floor",0.02,0.5,0.01,pct,null],
+  ]],
+  ["The ramp", [
+    ["sizes.medium.unlockAtRunFraction","Medium unlocks at",0,1,0.02,v=>(v*100).toFixed(0)+"% of run",
+      "Sizes unlock on the clock OR on deliveries, whichever lands first. Push these out and the opening stays small for longer."],
+    ["sizes.large.unlockAtRunFraction","Large unlocks at",0,1,0.02,v=>(v*100).toFixed(0)+"% of run",null],
+    ["sizes.huge.unlockAtRunFraction","Flagship unlocks at",0,1,0.02,v=>(v*100).toFixed(0)+"% of run",null],
+    ["sizes.medium.unlockAtDeliveries","Medium unlocks after",0,60,1,v=>v+" delivered",
+      "The engine-building half of the gate: deliver faster and the bigger board arrives sooner."],
+    ["sizes.large.unlockAtDeliveries","Large unlocks after",0,80,1,v=>v+" delivered",null],
+    ["sizes.huge.unlockAtDeliveries","Flagship unlocks after",0,120,1,v=>v+" delivered",null],
+    ["sizes.tiny.weightEarly","Quick fix weight, start",0,12,0.5,v=>v.toFixed(1),"Board weights lerp from start to end across the run, which is what retires the small jobs gradually instead of cutting them off."],
+    ["sizes.tiny.weightLate","Quick fix weight, end",0,12,0.5,v=>v.toFixed(1),null],
+    ["sizes.huge.weightEarly","Flagship weight, start",0,12,0.5,v=>v.toFixed(1),null],
+    ["sizes.huge.weightLate","Flagship weight, end",0,12,0.5,v=>v.toFixed(1),null],
+    ["sizes.tiny.difficultyBias","Quick fix difficulty bias",-3,3,0.1,v=>v.toFixed(1)+" pips","Added to the escalation target before rounding. Negative keeps the opening jobs at one pip all run."],
+    ["sizes.huge.difficultyBias","Flagship difficulty bias",-3,3,0.1,v=>v.toFixed(1)+" pips",null],
   ]],
   ["Decay", [
     ["decay.perSecond","Decay per second",0.0002,0.02,0.0002,v=>(v*100).toFixed(2)+"%","Fraction of the original offer lost every second once accepted."],
@@ -1038,7 +1203,7 @@ function buildLevers(){
   root.innerHTML = "";
   LEVERS.forEach(([title, items], gi) => {
     const g = document.createElement("div");
-    g.className = "grp" + (gi>0 && gi<7 ? " shut" : "");
+    g.className = "grp" + (gi>0 && gi<LEVERS.length-1 ? " shut" : "");
     const h = document.createElement("h3"); h.textContent = title; h.tabIndex = 0;
     h.onclick = () => g.classList.toggle("shut");
     h.onkeydown = e => { if(e.key==="Enter"||e.key===" "){e.preventDefault();g.classList.toggle("shut");} };

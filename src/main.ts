@@ -6,6 +6,8 @@ import { buildShell } from "./render/shell";
 import { render } from "./render/floor";
 import { tick, acceptProject, assignAgent, retryAgent } from "./sim/tick";
 import { mountGestures, syncFocusability } from "./input/gestures";
+import { mountShop } from "./ui/shop";
+import { mountInspector } from "./ui/inspect";
 
 const params = new URLSearchParams(window.location.search);
 const seed = params.get("seed") ?? "seed-1";
@@ -20,6 +22,11 @@ if (!stageEl) {
 mountStage(stageEl);
 const refs = buildShell(stageEl);
 mountGestures(state, refs);
+
+// The shop spends money; the inspector only reads. Both live above the floor
+// inside #stage so they scale with it.
+const shop = mountShop(state, stageEl);
+const inspector = mountInspector(state, stageEl);
 
 render(state, refs, 0);
 syncFocusability(state, refs);
@@ -69,6 +76,10 @@ function frame(now: number): void {
   }
   render(state, refs, acc / STEP);
   syncFocusability(state, refs);
+  // Both read sim state and no-op when closed, so this costs nothing when the
+  // player has neither open.
+  shop.render();
+  inspector.render();
 
   if (state.finished) {
     // eslint-disable-next-line no-console
@@ -133,14 +144,34 @@ window.addEventListener("focus", () => {
   }
 });
 
+// ESC unwinds one layer at a time: the inspect panel, then the shop, then the
+// run itself. Pausing is the last thing it does, never the first.
 window.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") {
-    togglePause();
+  if (e.key !== "Escape") return;
+  if (inspector.isOpen()) {
+    inspector.close();
+    return;
   }
+  if (shop.isOpen()) {
+    shop.close();
+    return;
+  }
+  togglePause();
 });
 
-refs.pauseBtn.addEventListener("pointerdown", () => {
+refs.pauseBtn.addEventListener("pointerdown", (e) => {
+  if (e.button !== 0) return;
   togglePause();
+});
+
+refs.buyBtn.addEventListener("pointerdown", (e) => {
+  if (e.button !== 0) return;
+  shop.open("tokens");
+});
+
+refs.hireBtn.addEventListener("pointerdown", (e) => {
+  if (e.button !== 0) return;
+  shop.open("models");
 });
 
 // TODO(dev-only): console access for poking the floor / driving the loop from

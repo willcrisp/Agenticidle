@@ -21,7 +21,7 @@
 
 import type { RunState } from "../sim/state";
 import type { Refs } from "../render/shell";
-import { retryAgent, assignAgent, acceptProject, setDial, buyCreditBlock } from "../sim/tick";
+import { retryAgent, assignAgent, acceptProject, setDial } from "../sim/tick";
 
 const DRAG_THRESHOLD_PX = 4;
 
@@ -191,6 +191,9 @@ export function mountGestures(state: RunState, refs: Refs): () => void {
   }
 
   function onPointerDown(e: PointerEvent): void {
+    // Primary button only. A right-click belongs to the inspect menu, and
+    // before this guard it was also retrying blocked agents.
+    if (e.button !== 0) return;
     const target = e.target;
     if (!(target instanceof Element)) return;
 
@@ -244,19 +247,15 @@ export function mountGestures(state: RunState, refs: Refs): () => void {
     retryAgent(state, id);
   }
 
-  // TODO(step-5): replace with the real block-picker shop
-  function onBuyPointerDown(): void {
-    buyCreditBlock(state, 0);
-  }
+  // The topbar's BUY MORE and HIRE buttons are not gestures — they open the
+  // shop, which owns every purchase. main.ts wires them.
 
   refs.game.addEventListener("pointerdown", onPointerDown);
   refs.game.addEventListener("keydown", onKeyDown);
-  refs.buyBtn.addEventListener("pointerdown", onBuyPointerDown);
 
   return function teardown(): void {
     refs.game.removeEventListener("pointerdown", onPointerDown);
     refs.game.removeEventListener("keydown", onKeyDown);
-    refs.buyBtn.removeEventListener("pointerdown", onBuyPointerDown);
     if (activeDrag) {
       endDragListeners(activeDrag.el);
       settle(activeDrag);

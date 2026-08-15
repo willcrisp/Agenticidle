@@ -29,6 +29,7 @@ export interface Refs {
   creditFill: HTMLElement; // the scaleX target
   creditLabel: HTMLElement;
   buyBtn: HTMLElement;
+  hireBtn: HTMLElement;
   clock: HTMLElement;
   pauseBtn: HTMLElement;
   pods: PodRefs[]; // length 4
@@ -57,6 +58,7 @@ function buildTopbar(): {
   creditFill: HTMLElement;
   creditLabel: HTMLElement;
   buyBtn: HTMLElement;
+  hireBtn: HTMLElement;
   clock: HTMLElement;
   pauseBtn: HTMLElement;
 } {
@@ -65,11 +67,13 @@ function buildTopbar(): {
   // The value lives in its own node so the renderer can write textContent to
   // it every frame without clobbering the "MONEY" label beside it.
   const money = el("div", "money");
+  money.dataset.inspect = "money";
   const moneyValue = text("b", "money-v", "$0");
   const moneyLabel = text("span", "", "MONEY");
   money.append(moneyValue, moneyLabel);
 
   const credits = el("div", "credits");
+  credits.dataset.inspect = "credits";
   const credTop = el("div", "cred-top");
   const creditLabel = text("span", "cred-l", "CREDITS");
   credTop.append(creditLabel);
@@ -81,18 +85,26 @@ function buildTopbar(): {
 
   const buyBtn = text("div", "buy", "BUY MORE");
   buyBtn.id = "buy";
+  buyBtn.dataset.inspect = "credits";
+
+  // Money-coloured, because what it spends is money — the same rule that makes
+  // the token button credit-blue.
+  const hireBtn = text("div", "hire", "HIRE");
+  hireBtn.id = "hire";
+  hireBtn.dataset.inspect = "roster";
 
   const spacer = el("div", "spacer");
 
   const clock = text("div", "clock", "30:00");
   clock.id = "clock";
+  clock.dataset.inspect = "clock";
 
   const pauseBtn = text("div", "pause", "❚❚");
   pauseBtn.id = "pause";
 
-  topbar.append(money, credits, buyBtn, spacer, clock, pauseBtn);
+  topbar.append(money, credits, buyBtn, hireBtn, spacer, clock, pauseBtn);
 
-  return { topbar, money: moneyValue, creditFill, creditLabel, buyBtn, clock, pauseBtn };
+  return { topbar, money: moneyValue, creditFill, creditLabel, buyBtn, hireBtn, clock, pauseBtn };
 }
 
 function buildPod(index: number): PodRefs {
@@ -157,11 +169,13 @@ function buildTray(): { tray: HTMLElement; trayIdle: HTMLElement; trayBoard: HTM
   const tray = el("div", "tray");
 
   const idleHalf = el("div", "tray-half");
+  idleHalf.dataset.inspect = "roster";
   const idleHeading = text("div", "tray-h a", "DOING NOTHING");
   const trayIdle = el("div", "tray-row tray-idle");
   idleHalf.append(idleHeading, trayIdle);
 
   const boardHalf = el("div", "tray-half");
+  boardHalf.dataset.inspect = "board";
   const boardHeading = text("div", "tray-h b", "PROJECTS AVAILABLE");
   const trayBoard = el("div", "tray-row");
   boardHalf.append(boardHeading, trayBoard);
@@ -184,7 +198,8 @@ export function buildShell(root: HTMLElement): Refs {
 
   const game = el("div", "game");
 
-  const { topbar, money, creditFill, creditLabel, buyBtn, clock, pauseBtn } = buildTopbar();
+  const { topbar, money, creditFill, creditLabel, buyBtn, hireBtn, clock, pauseBtn } =
+    buildTopbar();
 
   const podsContainer = el("div", "pods");
   const pods: PodRefs[] = [];
@@ -205,6 +220,7 @@ export function buildShell(root: HTMLElement): Refs {
     creditFill,
     creditLabel,
     buyBtn,
+    hireBtn,
     clock,
     pauseBtn,
     pods,

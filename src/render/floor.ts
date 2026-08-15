@@ -74,13 +74,14 @@ function renderBoard(state: RunState, refs: Refs): void {
       if (!card) {
         card = createCard();
         boardCards.set(p.id, card);
+        card.root.dataset.projectId = String(p.id);
         card.nameEl.textContent = p.name;
         for (let i = 0; i < card.pips.length; i++) {
           const pip = card.pips[i];
           if (pip) pip.classList.toggle("on", i < p.difficulty);
         }
         const footer = card.root.querySelector(".pcard-f");
-        if (footer) footer.textContent = p.size.toUpperCase() + " JOB";
+        if (footer) footer.textContent = state.cfg.sizes[p.size].label;
       }
       refs.trayBoard.appendChild(card.root);
     }

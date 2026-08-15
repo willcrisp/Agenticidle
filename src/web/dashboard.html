@@ -162,18 +162,38 @@ const LEVERS = [
     ["classes.elite.cost","Elite cost",1000,80000,500,money,"If elites never pay back, cheap coverage wins and the class ladder is dead."],
     ["classes.senior.burnMult","Senior burn ×",0.5,3,0.05,v=>v.toFixed(2)+"×",null],
     ["classes.elite.burnMult","Elite burn ×",0.5,3,0.05,v=>v.toFixed(2)+"×","Whether good agents also cost more to run changes the coverage lever entirely."],
+    ["classes.senior.licenceCost","Senior licence",0,40000,250,money,"One-off price of being allowed to hire the class at all. Set to 0 to hand it to the player at t=0."],
+    ["classes.elite.licenceCost","Elite licence",0,80000,500,money,"Too high and nobody ever sees an elite; too low and the class ladder costs nothing to climb."],
   ]],
   ["Projects", [
+    ["sizes.tiny.work","Quick fix work",4,80,2,v=>v+"s","The opening job. It has to be clearable by two starters in well under a minute or the first 90 seconds feel dead."],
     ["sizes.small.work","Small job work",10,200,5,v=>v+"s",null],
     ["sizes.medium.work","Medium job work",20,400,10,v=>v+"s",null],
     ["sizes.large.work","Large job work",50,800,10,v=>v+"s",null],
     ["sizes.huge.work","Huge job work",100,1600,25,v=>v+"s","Huge jobs late are the pro-rata trap. Watch what happens if you raise this."],
+    ["sizes.tiny.payoutPerWork","Quick fix $ per work",1,80,1,v=>"$"+v,null],
     ["sizes.small.payoutPerWork","Small $ per work",1,80,1,v=>"$"+v,null],
     ["sizes.medium.payoutPerWork","Medium $ per work",1,80,1,v=>"$"+v,null],
     ["sizes.large.payoutPerWork","Large $ per work",1,80,1,v=>"$"+v,null],
     ["sizes.huge.payoutPerWork","Huge $ per work",1,80,1,v=>"$"+v,null],
     ["difficulty.penaltyPerPip","Difficulty penalty / pip",0,0.22,0.005,pct,"Subtracted from one-shot per pip above 1. This is what makes quality matter separately from count."],
     ["difficulty.floor","One-shot floor",0.02,0.5,0.01,pct,null],
+  ]],
+  ["The ramp", [
+    ["sizes.medium.unlockAtRunFraction","Medium unlocks at",0,1,0.02,v=>(v*100).toFixed(0)+"% of run",
+      "Sizes unlock on the clock OR on deliveries, whichever lands first. Push these out and the opening stays small for longer."],
+    ["sizes.large.unlockAtRunFraction","Large unlocks at",0,1,0.02,v=>(v*100).toFixed(0)+"% of run",null],
+    ["sizes.huge.unlockAtRunFraction","Flagship unlocks at",0,1,0.02,v=>(v*100).toFixed(0)+"% of run",null],
+    ["sizes.medium.unlockAtDeliveries","Medium unlocks after",0,60,1,v=>v+" delivered",
+      "The engine-building half of the gate: deliver faster and the bigger board arrives sooner."],
+    ["sizes.large.unlockAtDeliveries","Large unlocks after",0,80,1,v=>v+" delivered",null],
+    ["sizes.huge.unlockAtDeliveries","Flagship unlocks after",0,120,1,v=>v+" delivered",null],
+    ["sizes.tiny.weightEarly","Quick fix weight, start",0,12,0.5,v=>v.toFixed(1),"Board weights lerp from start to end across the run, which is what retires the small jobs gradually instead of cutting them off."],
+    ["sizes.tiny.weightLate","Quick fix weight, end",0,12,0.5,v=>v.toFixed(1),null],
+    ["sizes.huge.weightEarly","Flagship weight, start",0,12,0.5,v=>v.toFixed(1),null],
+    ["sizes.huge.weightLate","Flagship weight, end",0,12,0.5,v=>v.toFixed(1),null],
+    ["sizes.tiny.difficultyBias","Quick fix difficulty bias",-3,3,0.1,v=>v.toFixed(1)+" pips","Added to the escalation target before rounding. Negative keeps the opening jobs at one pip all run."],
+    ["sizes.huge.difficultyBias","Flagship difficulty bias",-3,3,0.1,v=>v.toFixed(1)+" pips",null],
   ]],
   ["Decay", [
     ["decay.perSecond","Decay per second",0.0002,0.02,0.0002,v=>(v*100).toFixed(2)+"%","Fraction of the original offer lost every second once accepted."],
@@ -227,7 +247,7 @@ function buildLevers(){
   root.innerHTML = "";
   LEVERS.forEach(([title, items], gi) => {
     const g = document.createElement("div");
-    g.className = "grp" + (gi>0 && gi<7 ? " shut" : "");
+    g.className = "grp" + (gi>0 && gi<LEVERS.length-1 ? " shut" : "");
     const h = document.createElement("h3"); h.textContent = title; h.tabIndex = 0;
     h.onclick = () => g.classList.toggle("shut");
     h.onkeydown = e => { if(e.key==="Enter"||e.key===" "){e.preventDefault();g.classList.toggle("shut");} };
