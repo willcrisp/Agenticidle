@@ -19,10 +19,16 @@ export const LOCAL_KEY_KEY = "agent-idol.key.v1";
 export const SAVE_VERSION = 1 as const;
 
 /**
- * Words drawn per generated key. With a 256-word list this is 256^4 ≈ 4.3e9
- * combinations. Combined with server-side rate limiting, guessing your way into
- * someone else's studio is not a realistic attack. Raising this to 5 costs one
- * more word to type and buys a factor of 256.
+ * Words drawn per generated key.
+ *
+ * Drawn without replacement from a 256-word list, so this is 256·255·254·253 ≈
+ * 4.2e9 combinations — just under 32 bits. Combined with server-side rate
+ * limiting, guessing your way into someone else's studio is not a realistic
+ * attack. Raising this to 5 costs one more word to type and buys a factor of
+ * ~250.
+ *
+ * Must stay well below the wordlist length: generation draws distinct words, so
+ * a value near 256 would spin on collisions.
  */
 export const KEY_WORDS = 4;
 
