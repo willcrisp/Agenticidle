@@ -16,6 +16,7 @@ import {
   retryAgent,
   benchAgent,
   hireAgent,
+  buyTokens,
   addAgentToPod,
   removeAgentFromPod,
   abandonProject,
@@ -80,10 +81,10 @@ describe("pro-rata on decayed value", () => {
     expect(banked).toBeLessThan(originalHalf);
   });
 
-  it("leftover credits are worth nothing at the buzzer", () => {
-    const a = createRun(DEFAULT_CONFIG, "cred");
-    const b = createRun(DEFAULT_CONFIG, "cred");
-    b.credits += 99_999;
+  it("leftover tokens are worth nothing at the buzzer", () => {
+    const a = createRun(DEFAULT_CONFIG, "tok");
+    const b = createRun(DEFAULT_CONFIG, "tok");
+    b.tokens += 99_999;
     finalise(a);
     finalise(b);
     expect(a.score).toBe(b.score);
@@ -211,15 +212,15 @@ describe("agents", () => {
     const s = createRun(DEFAULT_CONFIG, "bench");
     acceptProject(s, 0, 0);
     for (const a of s.agents) assignAgent(s, a.id, 0);
-    const before = s.credits;
+    const before = s.tokens;
     step(s, 5);
-    const burned = before - s.credits;
+    const burned = before - s.tokens;
     expect(burned).toBeGreaterThan(0);
 
     for (const a of s.agents) benchAgent(s, a.id);
-    const mid = s.credits;
+    const mid = s.tokens;
     step(s, 5);
-    expect(s.credits).toBe(mid);
+    expect(s.tokens).toBe(mid);
   });
 
   it("delivering lets the whole team on it go at once — there's no idle tray to wait in", () => {
@@ -362,20 +363,20 @@ describe("no seats", () => {
     expect(s.agents.filter((a) => a.pod === 0).length).toBe(s.agents.length);
   });
 
-  it("swarming costs proportionally more credits", () => {
+  it("swarming costs proportionally more tokens", () => {
     const one = createRun(DEFAULT_CONFIG, "burn1");
     acceptProject(one, 0, 0);
     assignAgent(one, one.agents[0].id, 0);
-    const b1 = one.credits;
+    const b1 = one.tokens;
     step(one, 5);
-    const burn1 = b1 - one.credits;
+    const burn1 = b1 - one.tokens;
 
     const many = createRun(DEFAULT_CONFIG, "burn1");
     acceptProject(many, 0, 0);
     for (const a of many.agents) assignAgent(many, a.id, 0);
-    const b2 = many.credits;
+    const b2 = many.tokens;
     step(many, 5);
-    const burnMany = b2 - many.credits;
+    const burnMany = b2 - many.tokens;
 
     expect(burnMany).toBeGreaterThan(burn1 * 1.5);
   });
@@ -471,15 +472,15 @@ describe("economy", () => {
     }
   });
 
-  it("a starter on a 5-pip job is a credit bonfire versus an elite", () => {
+  it("a starter on a 5-pip job is a token bonfire versus an elite", () => {
     const starter = effectiveOneShot(DEFAULT_CONFIG, "starter", 5);
     const elite = effectiveOneShot(DEFAULT_CONFIG, "elite", 5);
     expect(elite / starter).toBeGreaterThan(1.5);
   });
 
-  it("zero credits stalls work while the deadline clock keeps running", () => {
+  it("zero tokens stalls work while the deadline clock keeps running", () => {
     const s = createRun(DEFAULT_CONFIG, "stall");
-    s.credits = 0;
+    s.tokens = 0;
     acceptProject(s, 0, 0);
     const p = s.pods[0]!;
     for (const a of s.agents) assignAgent(s, a.id, 0);
@@ -500,13 +501,21 @@ describe("economy", () => {
     expect(tokenPriceMult(s)).toBeLessThan(start);
   });
 
-  it("bigger blocks have a better per-token rate (the poverty tax)", () => {
-    const blocks = DEFAULT_CONFIG.credits.blocks;
-    for (let i = 1; i < blocks.length; i++) {
-      const prev = blocks[i - 1].price / blocks[i - 1].tokens;
-      const cur = blocks[i].price / blocks[i].tokens;
-      expect(cur).toBeLessThan(prev);
-    }
+  it("BUY MORE always buys the same flat lot, no matter how many times", () => {
+    const s = createRun(DEFAULT_CONFIG, "buy");
+    const cashBefore = s.cash;
+    const tokensBefore = s.tokens;
+    expect(buyTokens(s)).toBe(true);
+    expect(s.tokens).toBe(tokensBefore + DEFAULT_CONFIG.tokens.lotSize);
+    expect(s.cash).toBeLessThan(cashBefore);
+    expect(s.tokensBought).toBe(DEFAULT_CONFIG.tokens.lotSize);
+    expect(s.telemetry.moneySpentOnTokens).toBe(cashBefore - s.cash);
+
+    const spentOnce = cashBefore - s.cash;
+    buyTokens(s);
+    // Second lot costs the same as the first — price only moves with
+    // deliveries banked (tokenPriceMult), never with purchase count.
+    expect(cashBefore - spentOnce - s.cash).toBe(spentOnce);
   });
 
   it("debt locks reasoning to LOW", () => {

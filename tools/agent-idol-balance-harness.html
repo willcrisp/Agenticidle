@@ -158,7 +158,7 @@ canvas{display:block;width:100%;image-rendering:auto}
     runSeconds: 1800,
     tickHz: 30,
     startingCash: 5e3,
-    startingCredits: 900,
+    startingTokens: 1e5,
     startingRoster: ["starter", "starter", "senior"],
     maxRoster: 24,
     maxAgentsPerPod: 15,
@@ -196,15 +196,11 @@ canvas{display:block;width:100%;image-rendering:auto}
       medium: { speed: 1, burn: 1 },
       high: { speed: 1.7, burn: 2.4 }
     },
-    credits: {
-      burnPerAgentSecond: 3,
+    tokens: {
+      burnPerAgentSecond: 300,
       blockedAgentsBurn: false,
-      blocks: [
-        { tokens: 500, price: 750 },
-        { tokens: 1500, price: 2050 },
-        { tokens: 5e3, price: 6250 },
-        { tokens: 15e3, price: 17250 }
-      ],
+      lotSize: 1e6,
+      lotPrice: 9e3,
       priceDropPerDelivery: 0.03,
       priceFloorMult: 0.45
     },
@@ -222,7 +218,7 @@ canvas{display:block;width:100%;image-rendering:auto}
       steps: 5,
       deliveriesToMax: 40
     },
-    failedRunsCostCredits: true,
+    failedRunsCostTokens: true,
     discardOverflow: false
   };
   function cloneConfig(c) {
@@ -334,8 +330,8 @@ canvas{display:block;width:100%;image-rendering:auto}
       t: 0,
       finished: false,
       cash: cfg.startingCash,
-      credits: cfg.startingCredits,
-      creditsBought: 0,
+      tokens: cfg.startingTokens,
+      tokensBought: 0,
       deliveries: 0,
       agents,
       pods: new Array(cfg.podCount).fill(null),
@@ -425,7 +421,7 @@ canvas{display:block;width:100%;image-rendering:auto}
       clicksServed: new Array(buckets).fill(0),
       blockedBacklog: new Array(buckets).fill(0),
       cashCurve: new Array(buckets).fill(0),
-      creditCurve: new Array(buckets).fill(0),
+      tokenCurve: new Array(buckets).fill(0),
       stalledSeconds: 0,
       debtSeconds: 0,
       agentsRepossessed: 0,
@@ -434,7 +430,7 @@ canvas{display:block;width:100%;image-rendering:auto}
       overflowWasted: 0,
       agentBlockedSeconds: 0,
       peakRoster: cfg.startingRoster.length,
-      moneySpentOnCredits: 0,
+      moneySpentOnTokens: 0,
       moneySpentOnAgents: 0
     };
   }
@@ -445,10 +441,10 @@ canvas{display:block;width:100%;image-rendering:auto}
     return Math.max(cfg.difficulty.floor, base - difficultyPenalty - crowdingPenalty);
   }
   function tokenPriceMult(state) {
-    const { credits } = state.cfg;
+    const { tokens } = state.cfg;
     return Math.max(
-      credits.priceFloorMult,
-      1 - state.deliveries * credits.priceDropPerDelivery
+      tokens.priceFloorMult,
+      1 - state.deliveries * tokens.priceDropPerDelivery
     );
   }
 
@@ -489,14 +485,13 @@ canvas{display:block;width:100%;image-rendering:auto}
     p.reasoning = s.lowLocked ? "low" : reasoning;
     return true;
   }
-  function buyCreditBlock(s, blockIndex) {
-    const block = s.cfg.credits.blocks[blockIndex];
-    if (!block) return false;
-    const price = Math.round(block.price * tokenPriceMult(s));
+  function buyTokens(s) {
+    const { tokens } = s.cfg;
+    const price = Math.round(tokens.lotPrice * tokenPriceMult(s));
     s.cash -= price;
-    s.credits += block.tokens;
-    s.creditsBought += block.tokens;
-    s.telemetry.moneySpentOnCredits += price;
+    s.tokens += tokens.lotSize;
+    s.tokensBought += tokens.lotSize;
+    s.telemetry.moneySpentOnTokens += price;
     return true;
   }
   function hireAgent(s, cls) {
@@ -538,16 +533,16 @@ canvas{display:block;width:100%;image-rendering:auto}
       if (a.pod === null) continue;
       const p = s.pods[a.pod];
       if (!p) continue;
-      const counts = a.state === "running" || a.state === "blocked" && cfg.credits.blockedAgentsBurn;
+      const counts = a.state === "running" || a.state === "blocked" && cfg.tokens.blockedAgentsBurn;
       if (!counts) continue;
-      burn += cfg.credits.burnPerAgentSecond * cfg.classes[a.cls].burnMult * cfg.reasoning[p.reasoning].burn;
+      burn += cfg.tokens.burnPerAgentSecond * cfg.classes[a.cls].burnMult * cfg.reasoning[p.reasoning].burn;
     }
     const wanted = burn * dtSeconds;
-    const stalled = s.credits <= 0 && wanted > 0;
+    const stalled = s.tokens <= 0 && wanted > 0;
     if (stalled) {
       s.telemetry.stalledSeconds += dtSeconds;
     } else {
-      s.credits = Math.max(0, s.credits - wanted);
+      s.tokens = Math.max(0, s.tokens - wanted);
     }
     for (const p of s.pods) {
       if (!p) continue;
@@ -702,7 +697,7 @@ canvas{display:block;width:100%;image-rendering:auto}
         accept: (b, pod) => acceptProject(s, b, pod),
         assign: (id, pod) => assignAgent(s, id, pod),
         reason: (pod, r) => setReasoning(s, pod, r),
-        buy: (b) => buyCreditBlock(s, b),
+        buy: () => buyTokens(s),
         hire: (c) => hireAgent(s, c)
       };
     }
@@ -718,23 +713,13 @@ canvas{display:block;width:100%;image-rendering:auto}
       api.accept(viable[0].i, pod);
     }
   }
-  function keepCreditsTopped(s, api, targetSeconds) {
+  function keepTokensTopped(s, api, targetSeconds) {
     const running = s.agents.filter((a) => a.state === "running").length;
     if (running === 0) return;
-    const burnRate = running * s.cfg.credits.burnPerAgentSecond * 1.4;
-    const runway = s.credits / Math.max(0.01, burnRate);
+    const burnRate = running * s.cfg.tokens.burnPerAgentSecond * 1.4;
+    const runway = s.tokens / Math.max(0.01, burnRate);
     if (runway > targetSeconds) return;
-    const timeLeft = s.cfg.runSeconds - s.t;
-    const blocks = s.cfg.credits.blocks;
-    for (let i = blocks.length - 1; i >= 0; i--) {
-      const secondsBought = blocks[i].tokens / burnRate;
-      if (secondsBought > timeLeft * 1.3 && i > 0) continue;
-      if (s.cash >= blocks[i].price) {
-        api.buy(i);
-        return;
-      }
-    }
-    api.buy(0);
+    api.buy();
   }
   function scatterIdle(s, api, pick) {
     const open = s.pods.map((p, i) => p ? i : -1).filter((i) => i >= 0);
@@ -771,7 +756,7 @@ canvas{display:block;width:100%;image-rendering:auto}
           api.reason(pod, decayed > 0.3 ? "high" : decayed > 0.12 ? "medium" : "low");
         }
       }
-      keepCreditsTopped(s, api, harvest ? 20 : 70);
+      keepTokensTopped(s, api, harvest ? 20 : 70);
       if (!harvest && s.t < s.cfg.runSeconds * 0.6 && s.agents.length < 10) {
         const elites = s.agents.filter((a) => a.cls === "elite").length;
         const seniors = s.agents.filter((a) => a.cls === "senior").length;
@@ -804,7 +789,7 @@ canvas{display:block;width:100%;image-rendering:auto}
       for (let pod = 0; pod < s.pods.length; pod++) {
         if (s.pods[pod]) api.reason(pod, harvestMode(s) ? "high" : "high");
       }
-      keepCreditsTopped(s, api, 60);
+      keepTokensTopped(s, api, 60);
       if (s.t < s.cfg.runSeconds * 0.5 && s.agents.length < 6) {
         api.hire("senior");
       }
@@ -824,7 +809,7 @@ canvas{display:block;width:100%;image-rendering:auto}
       for (let pod = 0; pod < s.pods.length; pod++) {
         if (s.pods[pod]) api.reason(pod, harvestMode(s) ? "high" : "medium");
       }
-      keepCreditsTopped(s, api, 80);
+      keepTokensTopped(s, api, 80);
       if (s.t < s.cfg.runSeconds * 0.7 && s.agents.length < s.pods.length + 2) {
         api.hire("elite");
       }
@@ -844,7 +829,7 @@ canvas{display:block;width:100%;image-rendering:auto}
       for (let pod = 0; pod < s.pods.length; pod++) {
         if (s.pods[pod]) api.reason(pod, harvestMode(s) ? "high" : "medium");
       }
-      keepCreditsTopped(s, api, 70);
+      keepTokensTopped(s, api, 70);
       if (s.t < s.cfg.runSeconds * 0.7 && s.agents.length < 16) {
         api.hire("starter");
       }
@@ -858,7 +843,7 @@ canvas{display:block;width:100%;image-rendering:auto}
     decide(s, api) {
       fillPods(s, api, (a, b) => b.payout - a.payout);
       scatterIdle(s, api, (open) => open[0]);
-      keepCreditsTopped(s, api, 60);
+      keepTokensTopped(s, api, 60);
     }
   };
   var STRATEGIES = [
@@ -883,7 +868,7 @@ canvas{display:block;width:100%;image-rendering:auto}
         Math.floor(s.t / s.telemetry.bucketSeconds)
       );
       s.telemetry.cashCurve[bucket] = Math.round(s.cash);
-      s.telemetry.creditCurve[bucket] = Math.round(s.credits);
+      s.telemetry.tokenCurve[bucket] = Math.round(s.tokens);
     }
     finalise(s);
     return s;
@@ -992,7 +977,7 @@ const LEVERS = [
   ["The run", [
     ["runSeconds","Run length",300,3600,60,v=>(v/60)+" min","The clock is the whole design. 20 or 45 minutes reshapes every phase."],
     ["startingCash","Starting cash",0,40000,500,money,"Fixed every run so scores stay comparable."],
-    ["startingCredits","Starting credits",0,6000,100,String,"How long you can operate before the first block purchase."],
+    ["startingTokens","Starting tokens",0,600000,10000,String,"How long you can operate before the first BUY MORE."],
     ["maxRoster","Roster cap",4,40,1,String,"How many bodies the floor can hold. Drives peak click load."],
     ["maxAgentsPerPod","Max agents / pod",2,25,1,String,"ADD stops working past this many on one project. A UI legibility cap, not an economic one — crowding.penaltyPerExtraAgent already taxes swarming well before you'd reach it."],
     ["podCount","Pods",2,8,1,String,null],
@@ -1032,14 +1017,16 @@ const LEVERS = [
     ["decay.penaltyPerDifficultyPip","Penalty / difficulty pip",0,0.15,0.005,pct,"Added to the penalty per pip above 1 — harder jobs punish a miss harder."],
     ["decay.floor","Decay floor",0,0.6,0.01,pct,"A contract never falls below this share of its offer, no matter how many misses."],
   ]],
-  ["Credits", [
-    ["credits.burnPerAgentSecond","Burn / agent / sec",0.2,12,0.1,v=>v.toFixed(1),"At MEDIUM reasoning, before class and reasoning multipliers."],
+  ["Tokens", [
+    ["tokens.burnPerAgentSecond","Burn / agent / sec",20,1200,10,v=>v.toFixed(0),"At MEDIUM reasoning, before class and reasoning multipliers."],
     ["reasoning.low.speed","LOW speed ×",0.2,1,0.05,v=>v.toFixed(2)+"×",null],
     ["reasoning.low.burn","LOW burn ×",0.1,1,0.05,v=>v.toFixed(2)+"×",null],
     ["reasoning.high.speed","HIGH speed ×",1,4,0.1,v=>v.toFixed(1)+"×",null],
-    ["reasoning.high.burn","HIGH burn ×",1,6,0.1,v=>v.toFixed(1)+"×","The central tension: is the decay you avoid worth the credits you burn?"],
-    ["credits.priceDropPerDelivery","Price drop / delivery",0,0.1,0.005,v=>(v*100).toFixed(1)+"%","Token prices fall as you deliver. The engine-building payoff."],
-    ["credits.priceFloorMult","Price floor",0.1,1,0.05,v=>v.toFixed(2)+"×",null],
+    ["reasoning.high.burn","HIGH burn ×",1,6,0.1,v=>v.toFixed(1)+"×","The central tension: is the decay you avoid worth the tokens you burn?"],
+    ["tokens.lotSize","Lot size",100000,3000000,100000,v=>v.toLocaleString(),"How many tokens one BUY MORE adds. Flat — no picker, no tiers."],
+    ["tokens.lotPrice","Lot price",1000,30000,500,money,"Cash cost of one lot, before the delivery discount below."],
+    ["tokens.priceDropPerDelivery","Price drop / delivery",0,0.1,0.005,v=>(v*100).toFixed(1)+"%","Lot price falls as you deliver. The engine-building payoff."],
+    ["tokens.priceFloorMult","Price floor",0.1,1,0.05,v=>v.toFixed(2)+"×",null],
   ]],
   ["Debt", [
     ["debt.interestPerSecond","Interest / sec",0,0.003,0.0001,v=>(v*100).toFixed(3)+"%",null],
@@ -1064,8 +1051,8 @@ const RULES = [
   ["escalation.shape","Escalation curve",["linear","stepped","accelerating"]],
 ];
 const FLAGS = [
-  ["credits.blockedAgentsBurn","Blocked agents keep burning credits","Undecided in the handover. If off, ignoring a red agent costs only opportunity."],
-  ["failedRunsCostCredits","Failed runs still cost their credits",null],
+  ["tokens.blockedAgentsBurn","Blocked agents keep burning tokens","Undecided in the handover. If off, ignoring a red agent costs only opportunity."],
+  ["failedRunsCostTokens","Failed runs still cost their tokens",null],
   ["discardOverflow","Discard slice overflow past 100%","A second, throughput-side crowding cost on top of crowding.penaltyPerExtraAgent's one-shot penalty. Stacking both may be too much brake at once — watch for it."],
 ];
 
@@ -1116,7 +1103,7 @@ function buildLevers(){
         w.appendChild(sel); body.appendChild(w);
       });
     }
-    if(title==="Credits"){
+    if(title==="Tokens"){
       FLAGS.forEach(([path,label,help])=>{
         const l=document.createElement("label"); l.className="chk";
         const c=document.createElement("input"); c.type="checkbox"; c.checked=get(cfg,path);
@@ -1253,7 +1240,7 @@ function diagnose(rows, cfg){
   const control = rows.find(r=>r.strategy.indexOf("control")>=0);
   const investors = rows.filter(r=>r!==control);
   if(control && investors.every(r=>r.median<=control.median))
-    out.push(["bad","INVESTMENT DOESN'T PAY","Doing nothing beats every strategy that hires. Hiring is free, so the cost is all in crowding and credit burn — ease those, or raise payouts."]);
+    out.push(["bad","INVESTMENT DOESN'T PAY","Doing nothing beats every strategy that hires. Hiring is free, so the cost is all in crowding and token burn — ease those, or raise payouts."]);
 
   const gap = best.median / Math.max(1, [...rows].sort((x,y)=>y.median-x.median)[1].median);
   if(gap>1.8)
@@ -1264,7 +1251,7 @@ function diagnose(rows, cfg){
   if(spread<0.25)
     out.push(["warn","LOW VARIANCE","P10 to P90 spans only "+pct(spread)+" of the median. Runs feel identical, which flattens the reason to replay."]);
   if(b.stalledSeconds>60)
-    out.push(["warn","CREDIT STALLS","Runs spend "+b.stalledSeconds.toFixed(0)+"s frozen at zero credits. Sickening by design, but check it isn't just tedium."]);
+    out.push(["warn","TOKEN STALLS","Runs spend "+b.stalledSeconds.toFixed(0)+"s frozen at zero tokens. Sickening by design, but check it isn't just tedium."]);
   if(rows.every(r=>r.debtRate<0.05))
     out.push(["warn","DEBT NEVER BITES","Almost no run ends in the red, so the whole debt ladder — interest, LOW-reasoning lock, repossession — is dead content."]);
   return out;
@@ -1330,7 +1317,7 @@ function render(rows, samples, runs){
   <div class="card">
     <h2>CASH ACROSS THE RUN</h2>
     <div class="in">
-      <p class="sub">Mean cash on hand. The intended shape is build, keep pace, harvest — spending down to nothing before the buzzer, since leftover credits score zero.</p>
+      <p class="sub">Mean cash on hand. The intended shape is build, keep pace, harvest — spending down to nothing before the buzzer, since leftover tokens score zero.</p>
       <canvas id="c3"></canvas>
     </div>
   </div>
@@ -1344,7 +1331,7 @@ function render(rows, samples, runs){
       <div class="tile"><b>PEAK BACKLOG</b><i>${Math.max(...b.backlogCurve).toFixed(1)}</i><s>agents queued at once</s></div>
       <div class="tile"><b>DELIVERIES</b><i>${b.deliveries.toFixed(1)}</i><s>projects banked per run</s></div>
       <div class="tile"><b>FAILED RUNS</b><i>${pct(b.failRate)}</i><s>resolve red</s></div>
-      <div class="tile ${b.stalledSeconds>60?"warn":""}"><b>STALLED</b><i>${b.stalledSeconds.toFixed(0)}s</i><s>frozen at zero credits</s></div>
+      <div class="tile ${b.stalledSeconds>60?"warn":""}"><b>STALLED</b><i>${b.stalledSeconds.toFixed(0)}s</i><s>frozen at zero tokens</s></div>
       <div class="tile ${b.repossessions>0?"warn":""}"><b>REPOSSESSED</b><i>${b.repossessions.toFixed(1)}</i><s>agents lost to debt</s></div>
       <div class="tile"><b>SPREAD</b><i>${b.spread.toFixed(2)}×</i><s>P10 to P90 over median</s></div>
     </div>

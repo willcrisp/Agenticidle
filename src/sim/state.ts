@@ -58,9 +58,10 @@ export interface RunState {
   finished: boolean;
 
   cash: number;
-  credits: number;
+  /** The token reserve. Decrements as agents burn it; no upper ceiling. */
+  tokens: number;
   /** Cumulative tokens bought, for spend accounting. */
-  creditsBought: number;
+  tokensBought: number;
   deliveries: number;
 
   agents: Agent[];
@@ -72,7 +73,7 @@ export interface RunState {
   /** Agents waiting on a click, in the order they broke. */
   blockedQueue: number[];
 
-  /** Forced to LOW reasoning by the credit limit. */
+  /** Forced to LOW reasoning by the debt lock (see `cfg.debt.lowLockAt`). */
   lowLocked: boolean;
   lastRepoAt: number;
 
@@ -91,9 +92,9 @@ export interface Telemetry {
   blockedBacklog: number[];
   /** Cash at the end of each bucket. */
   cashCurve: number[];
-  /** Credits at the end of each bucket. */
-  creditCurve: number[];
-  /** Seconds spent with zero credits and work outstanding. */
+  /** Tokens at the end of each bucket. */
+  tokenCurve: number[];
+  /** Seconds spent with zero tokens and work outstanding. */
   stalledSeconds: number;
   /** Seconds spent in debt. */
   debtSeconds: number;
@@ -105,7 +106,7 @@ export interface Telemetry {
   /** Total wall-seconds agents spent blocked. */
   agentBlockedSeconds: number;
   peakRoster: number;
-  moneySpentOnCredits: number;
+  moneySpentOnTokens: number;
   moneySpentOnAgents: number;
 }
 
@@ -140,8 +141,8 @@ export function createRun(cfg: Config = DEFAULT_CONFIG, seed = "seed-1"): RunSta
     t: 0,
     finished: false,
     cash: cfg.startingCash,
-    credits: cfg.startingCredits,
-    creditsBought: 0,
+    tokens: cfg.startingTokens,
+    tokensBought: 0,
     deliveries: 0,
     agents,
     pods: new Array(cfg.podCount).fill(null),
@@ -252,7 +253,7 @@ export function emptyTelemetry(cfg: Config): Telemetry {
     clicksServed: new Array(buckets).fill(0),
     blockedBacklog: new Array(buckets).fill(0),
     cashCurve: new Array(buckets).fill(0),
-    creditCurve: new Array(buckets).fill(0),
+    tokenCurve: new Array(buckets).fill(0),
     stalledSeconds: 0,
     debtSeconds: 0,
     agentsRepossessed: 0,
@@ -261,7 +262,7 @@ export function emptyTelemetry(cfg: Config): Telemetry {
     overflowWasted: 0,
     agentBlockedSeconds: 0,
     peakRoster: cfg.startingRoster.length,
-    moneySpentOnCredits: 0,
+    moneySpentOnTokens: 0,
     moneySpentOnAgents: 0,
   };
 }
@@ -323,9 +324,9 @@ export function podFailRate(state: RunState, podIndex: number): number | null {
 
 /** Current token price multiplier — falls with deliveries, not clock time. */
 export function tokenPriceMult(state: RunState): number {
-  const { credits } = state.cfg;
+  const { tokens } = state.cfg;
   return Math.max(
-    credits.priceFloorMult,
-    1 - state.deliveries * credits.priceDropPerDelivery
+    tokens.priceFloorMult,
+    1 - state.deliveries * tokens.priceDropPerDelivery
   );
 }

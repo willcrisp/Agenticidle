@@ -43,7 +43,7 @@ plain click, same as `BUY MORE`. Concretely, to get a run going:
    goes straight to work — there's no idle roster to drag from. Pile on as
    many as you like, up to 15 a pod: there's no seat *cost* below that, but
    every extra body lowers everyone on the pod's one-shot chance, on top of
-   burning that many more credits. Watch `HALLUCINATION` on the card climb
+   burning that many more tokens. Watch `HALLUCINATION` on the card climb
    from `LOW` toward `EXTREME` as you crowd it — your early warning for how
    much clicking a pod is about to demand. Stations shrink as a pod fills so
    the crowd stays legible.
@@ -53,9 +53,11 @@ plain click, same as `BUY MORE`. Concretely, to get a run going:
 4. When an agent gets stuck it turns red and asks something idiotic. **Click
    it.** It retries from zero, so the time it already spent is gone.
 5. Payouts **tick down every second** you take. The reasoning dial (`LOW`/
-   `MEDIUM`/`HIGH`) trades credits for speed.
-6. Credits are your fuel. At zero, everyone stops dead while the payout keeps
-   falling. `BUY MORE` is a placeholder until the shop's block-picker lands.
+   `MEDIUM`/`HIGH`) trades tokens for speed.
+6. Tokens are your fuel — a plain, uncapped number that only ever goes down.
+   At zero, everyone stops dead while the payout keeps falling. `BUY MORE`
+   tops the reserve up by a flat lot of tokens for cash; there's no picker,
+   it's always the same lot.
 
 `Esc` or the topbar button pauses. Blurring the window auto-pauses; an `Esc`
 pause does not un-pause itself when you click back in.
@@ -69,7 +71,7 @@ Five colours, five meanings, nothing else is coloured.
 | **Red** | click it |
 | **Amber** | drag it |
 | **Green** | money |
-| **Blue** | credits |
+| **Blue** | tokens |
 | **Grey** | ignore — if the screen is grey, put the kettle on |
 
 The clock is deliberately never red. Red means "click me", and you cannot
@@ -176,7 +178,7 @@ AI.addAgentToPod(AI.state, 0, "senior")   // drive it like a player
 ```
 
 Every mutation goes through an action in `src/sim/tick.ts` — `retryAgent`,
-`acceptProject`, `setReasoning`, `buyCreditBlock`, `addAgentToPod`,
+`acceptProject`, `setReasoning`, `buyTokens`, `addAgentToPod`,
 `removeAgentFromPod`, plus the lower-level `hireAgent`/`assignAgent`/
 `benchAgent` the harness still uses directly. Nothing else is allowed to
 write to the run.
@@ -215,7 +217,7 @@ main.ts        the loop, pause, and all the wiring
 the two meet.
 
 If pausing the game must freeze it, the sim owns it — the payout countdown,
-credit drain, run progress and the run clock are all sim. Sprite walks, bubble
+token drain, run progress and the run clock are all sim. Sprite walks, bubble
 bobs and slice pops are fx. Two independent clocks driving the same value is
 the bug class this rule exists to prevent.
 
@@ -239,14 +241,14 @@ balance harness, the floor bound to live state, the fixed-timestep loop, and
 the two gestures — now click-to-retry and drag-a-card-onto-a-pod; agents
 aren't dragged anymore (see `docs/decisions.md`).
 
-Not started: the rest of **step 5** (the credit block-picker and per-agent
-upgrades), **7** the anime.js juice pass, **8** the run summary, **9** audio
-and the tutorial ramp.
+Not started: the rest of **step 5** (per-agent upgrades), **7** the anime.js
+juice pass, **8** the run summary, **9** audio and the tutorial ramp.
 
 Hiring is wired: each pod's own `ADD` (with a class dropdown) and `REMOVE`
 call `addAgentToPod`/`removeAgentFromPod`, free of charge, straight from the
-project card — there's no idle tray anymore. `BUY MORE` is still a stub wired
-to the cheapest credit block — the real block-picker is what's left of step 5.
+project card — there's no idle tray anymore. `BUY MORE` is done — it calls
+`buyTokens` directly, no picker: tokens are bought in one flat lot
+(`cfg.tokens.lotSize`), as many times as cash allows (see `docs/decisions.md`).
 
 ## Open questions
 

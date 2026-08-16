@@ -173,14 +173,14 @@ check("debt suppresses the score but never ends the run", () => {
   return "no game over";
 });
 
-check("leftover credits score nothing", () => {
-  const a = simulateRun(DEFAULT_CONFIG, balanced, "cred");
+check("leftover tokens score nothing", () => {
+  const a = simulateRun(DEFAULT_CONFIG, balanced, "tok");
   const cfg = cloneConfig(DEFAULT_CONFIG);
-  cfg.startingCredits = DEFAULT_CONFIG.startingCredits + 50000;
-  const b = simulateRun(cfg, balanced, "cred");
+  cfg.startingTokens = DEFAULT_CONFIG.startingTokens + 50000;
+  const b = simulateRun(cfg, balanced, "tok");
   assert(
     b.score !== a.score || true,
-    "credits changed nothing at all, which is also suspicious"
+    "tokens changed nothing at all, which is also suspicious"
   );
   return "checked at the buzzer in unit tests";
 });

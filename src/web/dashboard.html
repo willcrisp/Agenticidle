@@ -145,7 +145,7 @@ const LEVERS = [
   ["The run", [
     ["runSeconds","Run length",300,3600,60,v=>(v/60)+" min","The clock is the whole design. 20 or 45 minutes reshapes every phase."],
     ["startingCash","Starting cash",0,40000,500,money,"Fixed every run so scores stay comparable."],
-    ["startingCredits","Starting credits",0,6000,100,String,"How long you can operate before the first block purchase."],
+    ["startingTokens","Starting tokens",0,600000,10000,String,"How long you can operate before the first BUY MORE."],
     ["maxRoster","Roster cap",4,40,1,String,"How many bodies the floor can hold. Drives peak click load."],
     ["maxAgentsPerPod","Max agents / pod",2,25,1,String,"ADD stops working past this many on one project. A UI legibility cap, not an economic one — crowding.penaltyPerExtraAgent already taxes swarming well before you'd reach it."],
     ["podCount","Pods",2,8,1,String,null],
@@ -185,14 +185,16 @@ const LEVERS = [
     ["decay.penaltyPerDifficultyPip","Penalty / difficulty pip",0,0.15,0.005,pct,"Added to the penalty per pip above 1 — harder jobs punish a miss harder."],
     ["decay.floor","Decay floor",0,0.6,0.01,pct,"A contract never falls below this share of its offer, no matter how many misses."],
   ]],
-  ["Credits", [
-    ["credits.burnPerAgentSecond","Burn / agent / sec",0.2,12,0.1,v=>v.toFixed(1),"At MEDIUM reasoning, before class and reasoning multipliers."],
+  ["Tokens", [
+    ["tokens.burnPerAgentSecond","Burn / agent / sec",20,1200,10,v=>v.toFixed(0),"At MEDIUM reasoning, before class and reasoning multipliers."],
     ["reasoning.low.speed","LOW speed ×",0.2,1,0.05,v=>v.toFixed(2)+"×",null],
     ["reasoning.low.burn","LOW burn ×",0.1,1,0.05,v=>v.toFixed(2)+"×",null],
     ["reasoning.high.speed","HIGH speed ×",1,4,0.1,v=>v.toFixed(1)+"×",null],
-    ["reasoning.high.burn","HIGH burn ×",1,6,0.1,v=>v.toFixed(1)+"×","The central tension: is the decay you avoid worth the credits you burn?"],
-    ["credits.priceDropPerDelivery","Price drop / delivery",0,0.1,0.005,v=>(v*100).toFixed(1)+"%","Token prices fall as you deliver. The engine-building payoff."],
-    ["credits.priceFloorMult","Price floor",0.1,1,0.05,v=>v.toFixed(2)+"×",null],
+    ["reasoning.high.burn","HIGH burn ×",1,6,0.1,v=>v.toFixed(1)+"×","The central tension: is the decay you avoid worth the tokens you burn?"],
+    ["tokens.lotSize","Lot size",100000,3000000,100000,v=>v.toLocaleString(),"How many tokens one BUY MORE adds. Flat — no picker, no tiers."],
+    ["tokens.lotPrice","Lot price",1000,30000,500,money,"Cash cost of one lot, before the delivery discount below."],
+    ["tokens.priceDropPerDelivery","Price drop / delivery",0,0.1,0.005,v=>(v*100).toFixed(1)+"%","Lot price falls as you deliver. The engine-building payoff."],
+    ["tokens.priceFloorMult","Price floor",0.1,1,0.05,v=>v.toFixed(2)+"×",null],
   ]],
   ["Debt", [
     ["debt.interestPerSecond","Interest / sec",0,0.003,0.0001,v=>(v*100).toFixed(3)+"%",null],
@@ -217,8 +219,8 @@ const RULES = [
   ["escalation.shape","Escalation curve",["linear","stepped","accelerating"]],
 ];
 const FLAGS = [
-  ["credits.blockedAgentsBurn","Blocked agents keep burning credits","Undecided in the handover. If off, ignoring a red agent costs only opportunity."],
-  ["failedRunsCostCredits","Failed runs still cost their credits",null],
+  ["tokens.blockedAgentsBurn","Blocked agents keep burning tokens","Undecided in the handover. If off, ignoring a red agent costs only opportunity."],
+  ["failedRunsCostTokens","Failed runs still cost their tokens",null],
   ["discardOverflow","Discard slice overflow past 100%","A second, throughput-side crowding cost on top of crowding.penaltyPerExtraAgent's one-shot penalty. Stacking both may be too much brake at once — watch for it."],
 ];
 
@@ -269,7 +271,7 @@ function buildLevers(){
         w.appendChild(sel); body.appendChild(w);
       });
     }
-    if(title==="Credits"){
+    if(title==="Tokens"){
       FLAGS.forEach(([path,label,help])=>{
         const l=document.createElement("label"); l.className="chk";
         const c=document.createElement("input"); c.type="checkbox"; c.checked=get(cfg,path);
@@ -406,7 +408,7 @@ function diagnose(rows, cfg){
   const control = rows.find(r=>r.strategy.indexOf("control")>=0);
   const investors = rows.filter(r=>r!==control);
   if(control && investors.every(r=>r.median<=control.median))
-    out.push(["bad","INVESTMENT DOESN'T PAY","Doing nothing beats every strategy that hires. Hiring is free, so the cost is all in crowding and credit burn — ease those, or raise payouts."]);
+    out.push(["bad","INVESTMENT DOESN'T PAY","Doing nothing beats every strategy that hires. Hiring is free, so the cost is all in crowding and token burn — ease those, or raise payouts."]);
 
   const gap = best.median / Math.max(1, [...rows].sort((x,y)=>y.median-x.median)[1].median);
   if(gap>1.8)
@@ -417,7 +419,7 @@ function diagnose(rows, cfg){
   if(spread<0.25)
     out.push(["warn","LOW VARIANCE","P10 to P90 spans only "+pct(spread)+" of the median. Runs feel identical, which flattens the reason to replay."]);
   if(b.stalledSeconds>60)
-    out.push(["warn","CREDIT STALLS","Runs spend "+b.stalledSeconds.toFixed(0)+"s frozen at zero credits. Sickening by design, but check it isn't just tedium."]);
+    out.push(["warn","TOKEN STALLS","Runs spend "+b.stalledSeconds.toFixed(0)+"s frozen at zero tokens. Sickening by design, but check it isn't just tedium."]);
   if(rows.every(r=>r.debtRate<0.05))
     out.push(["warn","DEBT NEVER BITES","Almost no run ends in the red, so the whole debt ladder — interest, LOW-reasoning lock, repossession — is dead content."]);
   return out;
@@ -483,7 +485,7 @@ function render(rows, samples, runs){
   <div class="card">
     <h2>CASH ACROSS THE RUN</h2>
     <div class="in">
-      <p class="sub">Mean cash on hand. The intended shape is build, keep pace, harvest — spending down to nothing before the buzzer, since leftover credits score zero.</p>
+      <p class="sub">Mean cash on hand. The intended shape is build, keep pace, harvest — spending down to nothing before the buzzer, since leftover tokens score zero.</p>
       <canvas id="c3"></canvas>
     </div>
   </div>
@@ -497,7 +499,7 @@ function render(rows, samples, runs){
       <div class="tile"><b>PEAK BACKLOG</b><i>${Math.max(...b.backlogCurve).toFixed(1)}</i><s>agents queued at once</s></div>
       <div class="tile"><b>DELIVERIES</b><i>${b.deliveries.toFixed(1)}</i><s>projects banked per run</s></div>
       <div class="tile"><b>FAILED RUNS</b><i>${pct(b.failRate)}</i><s>resolve red</s></div>
-      <div class="tile ${b.stalledSeconds>60?"warn":""}"><b>STALLED</b><i>${b.stalledSeconds.toFixed(0)}s</i><s>frozen at zero credits</s></div>
+      <div class="tile ${b.stalledSeconds>60?"warn":""}"><b>STALLED</b><i>${b.stalledSeconds.toFixed(0)}s</i><s>frozen at zero tokens</s></div>
       <div class="tile ${b.repossessions>0?"warn":""}"><b>REPOSSESSED</b><i>${b.repossessions.toFixed(1)}</i><s>agents lost to debt</s></div>
       <div class="tile"><b>SPREAD</b><i>${b.spread.toFixed(2)}×</i><s>P10 to P90 over median</s></div>
     </div>

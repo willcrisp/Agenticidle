@@ -7,7 +7,7 @@
  * controls. Built once per host, bound to the manager, never rebuilt.
  *
  * Entirely grey by design. Five colours, five meanings (CLAUDE.md): red = click
- * it, amber = drag it, green = money, blue = credits, grey = ignore. Nothing
+ * it, amber = drag it, green = money, blue = tokens, grey = ignore. Nothing
  * here is a game action, so nothing here takes a game colour.
  */
 

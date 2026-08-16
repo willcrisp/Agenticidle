@@ -3,7 +3,7 @@ import { RunState, Project } from "./state";
 import {
   acceptProject,
   assignAgent,
-  buyCreditBlock,
+  buyTokens,
   hireAgent,
   retryAgent,
   setReasoning,
@@ -32,7 +32,8 @@ export interface PlayerApi {
   accept(boardIndex: number, pod: number): void;
   assign(agentId: number, pod: number): void;
   reason(pod: number, r: Reasoning): void;
-  buy(blockIndex: number): void;
+  /** Buys one flat lot of tokens — there's only one size. */
+  buy(): void;
   hire(cls: ClassName): void;
 }
 
@@ -101,7 +102,7 @@ export class Player {
       accept: (b, pod) => acceptProject(s, b, pod),
       assign: (id, pod) => assignAgent(s, id, pod),
       reason: (pod, r) => setReasoning(s, pod, r),
-      buy: (b) => buyCreditBlock(s, b),
+      buy: () => buyTokens(s),
       hire: (c) => hireAgent(s, c),
     };
   }
@@ -126,25 +127,15 @@ function fillPods(s: RunState, api: PlayerApi, pickBest: (a: Project, b: Project
   }
 }
 
-function keepCreditsTopped(s: RunState, api: PlayerApi, targetSeconds: number) {
+function keepTokensTopped(s: RunState, api: PlayerApi, targetSeconds: number) {
   const running = s.agents.filter((a) => a.state === "running").length;
   if (running === 0) return;
-  const burnRate = running * s.cfg.credits.burnPerAgentSecond * 1.4;
-  const runway = s.credits / Math.max(0.01, burnRate);
+  const burnRate = running * s.cfg.tokens.burnPerAgentSecond * 1.4;
+  const runway = s.tokens / Math.max(0.01, burnRate);
   if (runway > targetSeconds) return;
-  const timeLeft = s.cfg.runSeconds - s.t;
-  // Don't buy more runway than there is run left — leftover credits score zero.
-  const blocks = s.cfg.credits.blocks;
-  for (let i = blocks.length - 1; i >= 0; i--) {
-    const secondsBought = blocks[i].tokens / burnRate;
-    if (secondsBought > timeLeft * 1.3 && i > 0) continue;
-    if (s.cash >= blocks[i].price) {
-      api.buy(i);
-      return;
-    }
-  }
-  // Broke: buy the smallest anyway. This is the poverty tax biting.
-  api.buy(0);
+  // Only one lot size exists — buy it, cash or no cash. Going negative here
+  // is the same debt tax as anywhere else in the economy.
+  api.buy();
 }
 
 function scatterIdle(s: RunState, api: PlayerApi, pick: (pods: number[]) => number) {
@@ -193,7 +184,7 @@ export const balanced: Strategy = {
       }
     }
 
-    keepCreditsTopped(s, api, harvest ? 20 : 70);
+    keepTokensTopped(s, api, harvest ? 20 : 70);
 
     // Hiring is free — the brake is crowding and burn, not cash. Build
     // toward a moderate roster (2 elite, then senior, then fill with
@@ -232,7 +223,7 @@ export const swarmer: Strategy = {
     for (let pod = 0; pod < s.pods.length; pod++) {
       if (s.pods[pod]) api.reason(pod, harvestMode(s) ? "high" : "high");
     }
-    keepCreditsTopped(s, api, 60);
+    keepTokensTopped(s, api, 60);
     // A deliberately small roster: this strategy's whole plan is stacking
     // everyone it has onto one bleeding contract, so the crowding penalty
     // is the cost it's choosing to pay, not something to hire around.
@@ -257,7 +248,7 @@ export const eliteOnly: Strategy = {
     for (let pod = 0; pod < s.pods.length; pod++) {
       if (s.pods[pod]) api.reason(pod, harvestMode(s) ? "high" : "medium");
     }
-    keepCreditsTopped(s, api, 80);
+    keepTokensTopped(s, api, 80);
     // Quality over coverage means few, expensive-to-run bodies spread thin —
     // hiring more elites than there are pods just buys more crowding.
     if (s.t < s.cfg.runSeconds * 0.7 && s.agents.length < s.pods.length + 2) {
@@ -281,7 +272,7 @@ export const swarmCheap: Strategy = {
     for (let pod = 0; pod < s.pods.length; pod++) {
       if (s.pods[pod]) api.reason(pod, harvestMode(s) ? "high" : "medium");
     }
-    keepCreditsTopped(s, api, 70);
+    keepTokensTopped(s, api, 70);
     // Free hiring makes this the strategy it always wanted to be: coverage
     // is limited only by the roster cap and how much crowding you can stand.
     if (s.t < s.cfg.runSeconds * 0.7 && s.agents.length < 16) {
@@ -299,7 +290,7 @@ export const idleHands: Strategy = {
   decide(s, api) {
     fillPods(s, api, (a, b) => b.payout - a.payout);
     scatterIdle(s, api, (open) => open[0]);
-    keepCreditsTopped(s, api, 60);
+    keepTokensTopped(s, api, 60);
   },
 };
 

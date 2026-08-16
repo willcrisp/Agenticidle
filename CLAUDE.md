@@ -45,7 +45,7 @@ from `src/save/`. Persistence is not simulation. main.ts is the only place the
 two meet, and it is where a finished run gets recorded.
 
 If pausing the game must freeze it, the sim owns it. The payout countdown,
-credit drain, agent run progress and the run clock are all sim. Slice pops,
+token drain, agent run progress and the run clock are all sim. Slice pops,
 sprite walks, bubble bobs, repossession staggers and screen transitions are fx.
 
 Two independent clocks driving the same value is the bug class this rule exists
@@ -98,7 +98,7 @@ Each has a stated reason in the tech stack doc.
 ## Interface constraints
 
 - **Five colours, five meanings.** Red = click it. Amber = drag it. Green =
-  money. Blue = credits. Grey = ignore. Nothing else is coloured.
+  money. Blue = tokens. Grey = ignore. Nothing else is coloured.
 - **The clock cannot be red.** Red means click it. Endgame urgency comes from
   motion and contrast: timer bob, floor darkening, panel edges tightening.
 - **Two gestures only.** Click anything red. Drag anything amber into a dashed
@@ -107,8 +107,8 @@ Each has a stated reason in the tech stack doc.
   decay labels. The player feels the rate instead of reading it. The run clock
   is the one permitted exception.
 - Respect `prefers-reduced-motion`, but keep the *informational* layer: the
-  payout counter still updates and the credit bar still drains. Cut only the
-  decorative layer.
+  payout counter still updates and the token count still decrements. Cut only
+  the decorative layer.
 
 ## The quality bar
 
