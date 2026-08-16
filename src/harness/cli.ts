@@ -83,7 +83,7 @@ function showSweep(
 }
 
 showSweep("run length (min)", (c, v) => (c.runSeconds = v * 60), [15, 20, 30, 45], (v) => v + "m");
-showSweep("decay /sec", (c, v) => (c.decay.perSecond = v), [0.003, 0.006, 0.01, 0.015], (v) => (v * 100).toFixed(1) + "%");
+showSweep("penalty/miss", (c, v) => (c.decay.basePenaltyFraction = v), [0.06, 0.12, 0.18, 0.25], (v) => (v * 100).toFixed(0) + "%");
 showSweep("difficulty penalty", (c, v) => (c.difficulty.penaltyPerPip = v), [0.05, 0.09, 0.13, 0.18], (v) => (v * 100).toFixed(0) + "%");
 showSweep("token burn/agent/s", (c, v) => (c.tokens.burnPerAgentSecond = v), [60, 110, 180, 260]);
 showSweep("escalation payout", (c, v) => (c.escalation.payoutEndMult = v), [1.5, 2.2, 3.2, 4.5], (v) => v + "x");

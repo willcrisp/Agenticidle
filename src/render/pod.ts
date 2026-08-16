@@ -12,6 +12,8 @@ interface PodMemo {
   name: string | null;
   payout: number | null;
   halluTier: number | null; // -1 for the "—" no-agents state
+  addGreyed: boolean | null;
+  removeGreyed: boolean | null;
 }
 
 const memos: PodMemo[] = [];
@@ -19,7 +21,14 @@ const memos: PodMemo[] = [];
 function memoFor(i: number): PodMemo {
   const existing = memos[i];
   if (existing) return existing;
-  const created: PodMemo = { projectId: null, name: null, payout: null, halluTier: null };
+  const created: PodMemo = {
+    projectId: null,
+    name: null,
+    payout: null,
+    halluTier: null,
+    addGreyed: null,
+    removeGreyed: null,
+  };
   memos[i] = created;
   return created;
 }
@@ -79,6 +88,28 @@ function renderHallucination(podRefs: PodRefs, memo: PodMemo, state: RunState, i
   }
 }
 
+/**
+ * Grey = ignore, same rule as everywhere else: ADD dims once this pod's at
+ * `maxAgentsPerPod` or the fleet's at `maxRoster`; REMOVE dims once there's
+ * nobody left here to let go of. Both stay clickable regardless — a no-op,
+ * like any other invalid drop.
+ */
+function renderControls(podRefs: PodRefs, memo: PodMemo, state: RunState, index: number): void {
+  const occupancy = state.agents.reduce((n, a) => n + (a.pod === index ? 1 : 0), 0);
+  const addGreyed =
+    occupancy >= state.cfg.maxAgentsPerPod || state.agents.length >= state.cfg.maxRoster;
+  const removeGreyed = occupancy === 0;
+
+  if (memo.addGreyed !== addGreyed) {
+    podRefs.addBtn.classList.toggle("is-unavailable", addGreyed);
+    memo.addGreyed = addGreyed;
+  }
+  if (memo.removeGreyed !== removeGreyed) {
+    podRefs.removeBtn.classList.toggle("is-unavailable", removeGreyed);
+    memo.removeGreyed = removeGreyed;
+  }
+}
+
 export function renderPod(state: RunState, refs: Refs, index: number): void {
   const podRefs = refs.pods[index];
   if (!podRefs) return;
@@ -96,6 +127,8 @@ export function renderPod(state: RunState, refs: Refs, index: number): void {
       memo.name = null;
       memo.payout = null;
       memo.halluTier = null;
+      memo.addGreyed = null;
+      memo.removeGreyed = null;
     }
     return;
   }
@@ -115,4 +148,5 @@ export function renderPod(state: RunState, refs: Refs, index: number): void {
   renderReasoning(podRefs.reasoning, p.reasoning);
   renderSegments(podRefs, memo, p);
   renderHallucination(podRefs, memo, state, index);
+  renderControls(podRefs, memo, state, index);
 }

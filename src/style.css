@@ -234,11 +234,11 @@ button {
 /* ================= PODS ================= */
 .pods {
   flex: 1;
-  padding: 16px;
+  padding: 10px;
   display: grid;
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
-  gap: 16px;
+  gap: 10px;
   min-height: 0;
 }
 .pod {
@@ -252,7 +252,7 @@ button {
   border-color: var(--fail);
 }
 .pod-h {
-  padding: 10px 14px 9px;
+  padding: 7px 14px 4px;
   border-bottom: 1px solid var(--line-soft);
   background: var(--pod-2);
 }
@@ -309,7 +309,7 @@ button {
   display: flex;
   align-items: center;
   gap: 3px;
-  margin-top: 8px;
+  margin-top: 5px;
 }
 .reasoning-l {
   font-family: var(--px);
@@ -354,7 +354,7 @@ button {
   display: flex;
   align-items: baseline;
   gap: 7px;
-  margin-top: 7px;
+  margin-top: 4px;
 }
 .hallu-l {
   font-family: var(--px);
@@ -396,7 +396,7 @@ button {
   align-content: flex-end;
   justify-content: center;
   gap: 0 2px;
-  padding: 8px 8px 0;
+  padding: 5px 8px 0;
   background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.24));
 }
 .station {
@@ -405,7 +405,7 @@ button {
   flex-direction: column;
   align-items: center;
   position: relative;
-  padding-bottom: 8px;
+  padding-bottom: 4px;
 }
 /* Pixel art scales by whole numbers only — 16px source at 4x. A non-integer
    size (the mockup's 72px box, which drew its art at 4x inside itself) smears
@@ -443,6 +443,61 @@ button {
 .desks.swarm .pop {
   font-size: 10px;
 }
+
+/* Two more tiers past swarm, up to maxAgentsPerPod (15) — sized so the
+   whole crowd still fits without wrapping into rows the pod has no height
+   for. Sprite sizes stay whole multiples of 16 (2x, 1x) per the pixel-art
+   rule. Speech bubbles get real at this density — a dozen "REBASE?"s
+   stacked edge to edge is unreadable — so dense/packed drop them for a red
+   outline on the sprite instead: still unmistakably "click me," without the
+   collision. */
+.desks.dense .station {
+  width: 40px;
+  padding-bottom: 5px;
+}
+.desks.dense .station .sprite {
+  width: 32px; /* 2x */
+  height: 32px;
+}
+.desks.dense .desk {
+  width: 34px;
+  height: 5px;
+}
+.desks.dense .plate b {
+  font-size: 6px;
+}
+.desks.dense .runbar {
+  width: 28px;
+  height: 3px;
+  margin-top: 4px;
+}
+.desks.dense .bub {
+  display: none;
+}
+.desks.dense .station.is-blocked .sprite {
+  outline: 2px solid var(--fail);
+  outline-offset: 1px;
+}
+
+.desks.packed .station {
+  width: 26px;
+  padding-bottom: 3px;
+}
+.desks.packed .station .sprite {
+  width: 16px; /* 1x */
+  height: 16px;
+}
+.desks.packed .desk,
+.desks.packed .plate,
+.desks.packed .runbar,
+.desks.packed .bub {
+  display: none;
+}
+.desks.packed .station.is-blocked .sprite {
+  outline: 2px solid var(--fail);
+  outline-offset: 1px;
+}
+
 .bub {
   position: absolute;
   top: -6px;
@@ -490,28 +545,29 @@ button {
 }
 .desk {
   width: 92px;
-  height: 10px;
+  height: 7px;
   background: #22272c;
   border-top: 2px solid #2e343a;
   margin-top: -4px;
 }
 .plate {
-  margin-top: 6px;
+  margin-top: 3px;
   text-align: center;
 }
 .plate b {
   display: block;
   font-family: var(--px);
   font-size: 10px;
+  line-height: 1;
   letter-spacing: 0.04em;
   color: var(--fg-2);
 }
 /* Continuous fill — animated with transform only, never width. */
 .runbar {
   width: 76px;
-  height: 6px;
+  height: 5px;
   background: #0d1114;
-  margin: 6px auto 0;
+  margin: 3px auto 0;
   position: relative;
   border: 1px solid #0d1114;
 }
@@ -535,42 +591,67 @@ button {
   background: #2a2f35;
   transform: scaleX(1) !important;
 }
-.empty {
-  width: 98px;
+/* Pod footer: pick a class, ADD it straight to work, or REMOVE the most
+   recent hire. Fixed height below `desks` (flex:1), so it's always in the
+   same place regardless of how many stations are wrapping above it —
+   there's no more dashed drop target here, since agents aren't dragged. */
+.pod-controls {
+  flex: none;
   display: flex;
-  flex-direction: column;
+  gap: 6px;
   align-items: center;
-  justify-content: flex-end;
-  padding-bottom: 10px;
+  padding: 5px 10px;
+  border-top: 1px solid var(--line-soft);
+  background: var(--pod-2);
 }
-.desks.swarm .empty {
-  width: 62px;
-  padding-bottom: 6px;
-}
-.empty-slot {
-  width: 52px;
-  height: 52px;
-  border: 2px dashed var(--faint);
-  margin-bottom: 22px;
-  display: grid;
-  place-items: center;
+.add-select {
   font-family: var(--px);
-  font-size: 7px;
-  color: var(--faint);
-  text-align: center;
-  line-height: 1.5;
-  padding: 2px;
+  font-size: 10px;
+  padding: 4px 6px;
+  background: #141719;
+  border: 1px solid var(--line);
+  color: var(--fg-2);
 }
-.desks.swarm .empty-slot {
-  width: 40px;
-  height: 40px;
-  margin-bottom: 16px;
-  font-size: 6px;
+/* ADD is coloured in the currency it deals in — an agent — same move the
+   old hire buttons made. REMOVE is chrome, not a resource, so it takes no
+   colour, same as PAUSE/STUDIO. */
+.add-btn {
+  font-family: var(--px);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  padding: 4px 10px;
+  border: 1px solid var(--idle);
+  color: var(--idle);
+  background: #191813;
+  line-height: 1;
+  cursor: pointer;
+}
+.remove-btn {
+  font-family: var(--px);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  padding: 4px 10px;
+  margin-left: auto;
+  border: 1px solid var(--line);
+  color: var(--dim);
+  background: #151a1e;
+  line-height: 1;
+  cursor: pointer;
+}
+/* Grey = ignore: ADD dims at the pod's or the fleet's cap, REMOVE dims with
+   nobody left to let go of. Still clickable — a no-op, like any other
+   invalid drop. */
+.add-btn.is-unavailable {
+  border-color: var(--faint);
+  color: var(--faint);
+}
+.remove-btn.is-unavailable {
+  color: var(--faint);
 }
 
-/* empty pod = drop a project here. `.pod-h` and `.desks` hide, `.pod-open`
-   shows, only when the pod root carries `.is-open` (not the mockup's
-   `.open`). `.pod-open` is hidden by default. */
+/* empty pod = drop a project here. `.pod-h`, `.desks` and `.pod-controls`
+   hide, `.pod-open` shows, only when the pod root carries `.is-open` (not
+   the mockup's `.open`). `.pod-open` is hidden by default. */
 .pod-open {
   display: none;
 }
@@ -582,7 +663,8 @@ button {
   justify-content: center;
 }
 .pod.is-open .pod-h,
-.pod.is-open .desks {
+.pod.is-open .desks,
+.pod.is-open .pod-controls {
   display: none;
 }
 .pod.is-open .pod-open {
@@ -598,7 +680,7 @@ button {
 
 /* ================= TRAY ================= */
 .tray {
-  height: 178px;
+  height: 155px;
   flex: none;
   border-top: 1px solid var(--line);
   background: #101316;
@@ -606,7 +688,7 @@ button {
 }
 .tray-half {
   flex: 1;
-  padding: 12px 16px;
+  padding: 8px 16px;
   min-width: 0;
 }
 .tray-half + .tray-half {
@@ -616,10 +698,7 @@ button {
   font-family: var(--px);
   font-size: 10px;
   letter-spacing: 0.1em;
-  margin-bottom: 12px;
-}
-.tray-h.a {
-  color: var(--idle);
+  margin-bottom: 8px;
 }
 .tray-h.b {
   color: var(--ok);
@@ -630,92 +709,13 @@ button {
   align-items: flex-start;
 }
 
-/* The idle heading carries the hire row alongside it — hiring produces an
-   idle agent, so it lives where idle agents live. */
-.tray-h-row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-.tray-h-row .tray-h {
-  margin-bottom: 0;
-}
-.hire-row {
-  display: flex;
-  gap: 6px;
-}
-/* Same click vocabulary as BUY MORE, coloured in the currency it spends
-   toward: an agent. Hiring is free — no price on the button, same as
-   BUY MORE shows none. What it costs you shows up later, in crowding and
-   tokens, not at the door. */
-.hire-btn {
-  font-family: var(--px);
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  padding: 8px 10px;
-  border: 1px solid var(--idle);
-  color: var(--idle);
-  background: #191813;
-  line-height: 1;
-  cursor: pointer;
-}
-/* Grey = ignore: not a live option right now — the roster is full.
-   Still clickable — a no-op, like any other invalid drop. */
-.hire-btn.is-unaffordable {
-  border-color: var(--faint);
-  color: var(--faint);
-}
-.hire-btn.is-unaffordable .hire-cost {
-  color: var(--faint);
-}
-
-/* Free hiring means the idle tray can hold far more than fits in one row —
-   it scrolls sideways rather than spilling into the board half or wrapping
-   into a layout the fixed-height tray was never built for. */
-.tray-idle {
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding-bottom: 4px;
-}
-
-/* A `.station` sitting in the idle tray is restyled to the mockup's
-   `.bcard` look. Scoped to the tray container, not an id on the station,
-   since the station node is the same pooled node used in a pod. */
-.tray-idle .station {
-  width: 88px;
-  flex: none;
-  padding-bottom: 0;
-  text-align: center;
-  border: 1px solid var(--idle);
-  background: #191813;
-  padding: 8px 4px 9px;
-}
-.tray-idle .station .sprite {
-  width: 48px; /* 3x */
-  height: 48px;
-  margin: 0 auto;
-}
-.tray-idle .station .plate b {
-  font-family: var(--px);
-  font-size: 10px;
-  color: var(--idle);
-  margin-top: 6px;
-}
-.tray-idle .station .desk,
-.tray-idle .station .runbar,
-.tray-idle .station .bub {
-  display: none;
-}
-
 /* project card: payout bar over cost bar — the gap is the profit */
 .pcard {
   flex: 1;
   max-width: 196px;
   border: 1px solid var(--line);
   background: #161a1d;
-  padding: 10px 11px 11px;
+  padding: 8px 11px 8px;
 }
 .pcard.great {
   border-color: var(--ok);
@@ -740,7 +740,7 @@ button {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 11px;
+  margin-top: 7px;
 }
 .diffrow em {
   font-style: normal;
@@ -771,7 +771,7 @@ button {
   font-size: 8.5px;
   letter-spacing: 0.06em;
   color: var(--faint);
-  margin-top: 9px;
+  margin-top: 6px;
 }
 
 /* difficulty pips inside a live pod header */
@@ -827,10 +827,6 @@ button {
   position: relative;
   z-index: 50;
   pointer-events: none;
-}
-
-.empty-slot.is-drop-target {
-  border-color: var(--fg-2);
 }
 
 .pod.is-open.is-drop-target {

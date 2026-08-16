@@ -11,7 +11,7 @@
 const POD_COUNT = 4;
 const REASONING_KEYS: readonly string[] = ["low", "medium", "high"];
 const REASONING_LABELS: readonly string[] = ["LOW", "MEDIUM", "HIGH"];
-/** The three agent classes on offer. Order matches the hire row, left to right. */
+/** The three agent classes on offer. Order matches the ADD dropdown, top to bottom. */
 export const HIRE_CLASSES: readonly string[] = ["starter", "senior", "elite"];
 const HIRE_LABELS: readonly string[] = ["STARTER", "SENIOR", "ELITE"];
 
@@ -24,7 +24,9 @@ export interface PodRefs {
   reasoning: HTMLElement[]; // length 3, order [low, medium, high]
   halluValue: HTMLElement; // the LOW/MEDIUM/HIGH/VERY HIGH/EXTREME text
   desks: HTMLElement; // agent stations reparent into here
-  emptySlot: HTMLElement; // the dashed DROP HERE target inside .desks
+  addSelect: HTMLSelectElement; // which class ADD hires
+  addBtn: HTMLElement;
+  removeBtn: HTMLElement;
   open: HTMLElement; // the "EMPTY / DRAG A PROJECT HERE" message div
 }
 
@@ -37,9 +39,7 @@ export interface Refs {
   pauseBtn: HTMLElement;
   studioBtn: HTMLElement;
   pods: PodRefs[]; // length 4
-  trayIdle: HTMLElement; // container for idle agent nodes
   trayBoard: HTMLElement; // container for project cards
-  hireButtons: HTMLElement[]; // length 3, order matches HIRE_CLASSES
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -166,10 +166,27 @@ function buildPod(index: number): PodRefs {
 
   // ---- desks ----
   const desks = el("div", "desks");
-  const empty = el("div", "empty");
-  const emptySlot = text("div", "empty-slot", "DROP HERE");
-  empty.append(emptySlot);
-  desks.append(empty);
+
+  // ---- controls: pick a class, ADD it straight to work here, or REMOVE
+  // the most recent hire. No drag, no idle tray to stage them in — hiring
+  // and assigning are the same click. Lives outside `desks` so it's always
+  // in the same place regardless of how many stations are currently
+  // wrapping around above it.
+  const controls = el("div", "pod-controls");
+  const addSelect = document.createElement("select");
+  addSelect.className = "add-select";
+  for (let i = 0; i < HIRE_CLASSES.length; i++) {
+    const cls = HIRE_CLASSES[i];
+    const label = HIRE_LABELS[i];
+    if (cls === undefined || label === undefined) continue;
+    const opt = document.createElement("option");
+    opt.value = cls;
+    opt.textContent = label;
+    addSelect.append(opt);
+  }
+  const addBtn = text("button", "add-btn", "ADD");
+  const removeBtn = text("button", "remove-btn", "REMOVE");
+  controls.append(addSelect, addBtn, removeBtn);
 
   // ---- open-pod message ----
   const open = el("div", "pod-open");
@@ -177,53 +194,35 @@ function buildPod(index: number): PodRefs {
   const openLine2 = text("div", "", "DRAG A PROJECT HERE");
   open.append(openLine1, openLine2);
 
-  root.append(podH, desks, open);
+  root.append(podH, desks, controls, open);
 
-  return { root, name, pips, payout, segs, reasoning, halluValue, desks, emptySlot, open };
+  return {
+    root,
+    name,
+    pips,
+    payout,
+    segs,
+    reasoning,
+    halluValue,
+    desks,
+    addSelect,
+    addBtn,
+    removeBtn,
+    open,
+  };
 }
 
-function buildHireRow(): { hireRow: HTMLElement; hireButtons: HTMLElement[] } {
-  const hireRow = el("div", "hire-row");
-  const hireButtons: HTMLElement[] = [];
-  for (let i = 0; i < HIRE_CLASSES.length; i++) {
-    const cls = HIRE_CLASSES[i];
-    const label = HIRE_LABELS[i];
-    if (cls === undefined || label === undefined) continue;
-    // No price on the button — hiring is free. The only thing worth
-    // learning by trying is that a bigger fleet costs you in crowding and
-    // tokens once you actually put it to work, not at the door.
-    const btn = text("button", "hire-btn", "+" + label);
-    btn.dataset.hire = cls;
-    hireButtons.push(btn);
-    hireRow.append(btn);
-  }
-  return { hireRow, hireButtons };
-}
-
-function buildTray(): {
-  tray: HTMLElement;
-  trayIdle: HTMLElement;
-  trayBoard: HTMLElement;
-  hireButtons: HTMLElement[];
-} {
+function buildTray(): { tray: HTMLElement; trayBoard: HTMLElement } {
   const tray = el("div", "tray");
-
-  const idleHalf = el("div", "tray-half");
-  const idleHeadingRow = el("div", "tray-h-row");
-  const idleHeading = text("div", "tray-h a", "DOING NOTHING");
-  const { hireRow, hireButtons } = buildHireRow();
-  idleHeadingRow.append(idleHeading, hireRow);
-  const trayIdle = el("div", "tray-row tray-idle");
-  idleHalf.append(idleHeadingRow, trayIdle);
 
   const boardHalf = el("div", "tray-half");
   const boardHeading = text("div", "tray-h b", "PROJECTS AVAILABLE");
   const trayBoard = el("div", "tray-row");
   boardHalf.append(boardHeading, trayBoard);
 
-  tray.append(idleHalf, boardHalf);
+  tray.append(boardHalf);
 
-  return { tray, trayIdle, trayBoard, hireButtons };
+  return { tray, trayBoard };
 }
 
 /**
@@ -249,7 +248,7 @@ export function buildShell(root: HTMLElement): Refs {
     podsContainer.append(pod.root);
   }
 
-  const { tray, trayIdle, trayBoard, hireButtons } = buildTray();
+  const { tray, trayBoard } = buildTray();
 
   game.append(topbar, podsContainer, tray);
   root.append(game);
@@ -263,8 +262,6 @@ export function buildShell(root: HTMLElement): Refs {
     pauseBtn,
     studioBtn,
     pods,
-    trayIdle,
     trayBoard,
-    hireButtons,
   };
 }

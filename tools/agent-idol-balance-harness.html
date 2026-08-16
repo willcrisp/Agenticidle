@@ -161,6 +161,7 @@ canvas{display:block;width:100%;image-rendering:auto}
     startingTokens: 1e5,
     startingRoster: ["starter", "starter", "senior"],
     maxRoster: 24,
+    maxAgentsPerPod: 15,
     podCount: 4,
     boardSlots: 3,
     boardRefillSeconds: 4,
@@ -183,7 +184,13 @@ canvas{display:block;width:100%;image-rendering:auto}
     difficulty: { penaltyPerPip: 0.09, floor: 0.15 },
     crowding: { penaltyPerExtraAgent: 0.04 },
     hallucination: { tierThresholds: [0.25, 0.4, 0.55, 0.7] },
-    decay: { perSecond: 22e-4, floor: 0.12, sizeDamping: 0.35 },
+    decay: {
+      baseIntervalSeconds: 40,
+      intervalPerWork: 0.2,
+      basePenaltyFraction: 0.12,
+      penaltyPerDifficultyPip: 0.03,
+      floor: 0.12
+    },
     reasoning: {
       low: { speed: 0.6, burn: 0.45 },
       medium: { speed: 1, burn: 1 },
@@ -400,7 +407,10 @@ canvas{display:block;width:100%;image-rendering:auto}
       workDone: 0,
       slices: [],
       reasoning: "medium",
-      acceptedAt: 0
+      acceptedAt: 0,
+      deadlineIntervalSeconds: cfg.decay.baseIntervalSeconds + cfg.decay.intervalPerWork * sc.work,
+      penaltyFraction: cfg.decay.basePenaltyFraction + cfg.decay.penaltyPerDifficultyPip * (difficulty - 1),
+      nextPenaltyAt: Infinity
     };
   }
   function emptyTelemetry(cfg) {
@@ -445,6 +455,7 @@ canvas{display:block;width:100%;image-rendering:auto}
     if (!p) return false;
     s.board.splice(boardIndex, 1);
     p.acceptedAt = s.t;
+    p.nextPenaltyAt = s.t + p.deadlineIntervalSeconds;
     s.pods[pod] = p;
     if (s.boardRefillAt <= s.t) s.boardRefillAt = s.t + s.cfg.boardRefillSeconds;
     return true;
@@ -489,6 +500,17 @@ canvas{display:block;width:100%;image-rendering:auto}
     s.telemetry.peakRoster = Math.max(s.telemetry.peakRoster, s.agents.length);
     return true;
   }
+  function clearPod(s, pod) {
+    for (let i = s.agents.length - 1; i >= 0; i--) {
+      const a = s.agents[i];
+      if (a.pod !== pod) continue;
+      if (a.state === "blocked") {
+        const qi = s.blockedQueue.indexOf(a.id);
+        if (qi >= 0) s.blockedQueue.splice(qi, 1);
+      }
+      s.agents.splice(i, 1);
+    }
+  }
   function tick(s, dtSeconds) {
     if (s.finished) return;
     const cfg = s.cfg;
@@ -524,15 +546,19 @@ canvas{display:block;width:100%;image-rendering:auto}
     }
     for (const p of s.pods) {
       if (!p) continue;
-      const damp = 1 - cfg.decay.sizeDamping * (p.work / cfg.sizes.huge.work);
-      const lost = p.originalPayout * cfg.decay.perSecond * damp * dtSeconds;
-      p.payout = Math.max(p.originalPayout * cfg.decay.floor, p.payout - lost);
+      while (p.nextPenaltyAt <= s.t) {
+        p.payout = Math.max(
+          p.originalPayout * cfg.decay.floor,
+          p.payout - p.originalPayout * p.penaltyFraction
+        );
+        p.nextPenaltyAt += p.deadlineIntervalSeconds;
+      }
     }
     const podOccupancy = new Array(s.pods.length).fill(0);
     for (const a of s.agents) {
       if (a.pod !== null) podOccupancy[a.pod] = (podOccupancy[a.pod] ?? 0) + 1;
     }
-    for (const a of s.agents) {
+    for (const a of s.agents.slice()) {
       if (a.state === "blocked") {
         a.blockedTime += dtSeconds;
         s.telemetry.agentBlockedSeconds += dtSeconds;
@@ -588,17 +614,7 @@ canvas{display:block;width:100%;image-rendering:auto}
     s.cash += p.payout;
     s.deliveries++;
     s.pods[pod] = null;
-    for (const a of s.agents) {
-      if (a.pod === pod) {
-        if (a.state === "blocked") {
-          const i = s.blockedQueue.indexOf(a.id);
-          if (i >= 0) s.blockedQueue.splice(i, 1);
-        }
-        a.state = "idle";
-        a.pod = null;
-        a.progress = 0;
-      }
-    }
+    clearPod(s, pod);
   }
   function repossess(s) {
     const order = ["starter", "senior", "elite"];
@@ -963,6 +979,7 @@ const LEVERS = [
     ["startingCash","Starting cash",0,40000,500,money,"Fixed every run so scores stay comparable."],
     ["startingTokens","Starting tokens",0,600000,10000,String,"How long you can operate before the first BUY MORE."],
     ["maxRoster","Roster cap",4,40,1,String,"How many bodies the floor can hold. Drives peak click load."],
+    ["maxAgentsPerPod","Max agents / pod",2,25,1,String,"ADD stops working past this many on one project. A UI legibility cap, not an economic one — crowding.penaltyPerExtraAgent already taxes swarming well before you'd reach it."],
     ["podCount","Pods",2,8,1,String,null],
     ["boardSlots","Board slots",1,6,1,String,null],
   ]],
@@ -994,9 +1011,11 @@ const LEVERS = [
     ["hallucination.tierThresholds.3","Hallucination: VERY HIGH→EXTREME at",0.3,0.95,0.01,pct,"Above this, it reads EXTREME. Keep all four ascending or the bands stop making sense."],
   ]],
   ["Decay", [
-    ["decay.perSecond","Decay per second",0.0002,0.02,0.0002,v=>(v*100).toFixed(2)+"%","Fraction of the original offer lost every second once accepted."],
-    ["decay.floor","Decay floor",0,0.6,0.01,pct,"A contract never falls below this share of its offer."],
-    ["decay.sizeDamping","Big-job damping",0,1,0.05,v=>v.toFixed(2),"Larger jobs decay slower, since they take longer by nature."],
+    ["decay.baseIntervalSeconds","Base deadline window",5,180,5,v=>v+"s","Grace seconds before the first missed-deadline penalty, at zero job size."],
+    ["decay.intervalPerWork","Deadline window / work-sec",0,1,0.01,v=>v.toFixed(2)+"s","Added per work-second of job size — bigger jobs get a longer window per miss."],
+    ["decay.basePenaltyFraction","Penalty per miss (difficulty 1)",0,0.5,0.01,pct,"Fraction of the ORIGINAL offer lost each time the deadline window is missed."],
+    ["decay.penaltyPerDifficultyPip","Penalty / difficulty pip",0,0.15,0.005,pct,"Added to the penalty per pip above 1 — harder jobs punish a miss harder."],
+    ["decay.floor","Decay floor",0,0.6,0.01,pct,"A contract never falls below this share of its offer, no matter how many misses."],
   ]],
   ["Tokens", [
     ["tokens.burnPerAgentSecond","Burn / agent / sec",20,1200,10,v=>v.toFixed(0),"At MEDIUM reasoning, before class and reasoning multipliers."],

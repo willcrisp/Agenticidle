@@ -7,7 +7,6 @@ import type { Refs } from "./shell";
 import { renderTopbar } from "./topbar";
 import { renderPod } from "./pod";
 import { renderAgents } from "./agent";
-import { renderHire } from "./hire";
 
 export type FloorEvent =
   | { kind: "slice"; agentId: number; pod: number }
@@ -161,7 +160,6 @@ export function render(state: RunState, refs: Refs, alpha: number): FloorEvent[]
   }
   renderAgents(state, refs);
   renderBoard(state, refs);
-  renderHire(state, refs);
 
   return detectEvents(state);
 }

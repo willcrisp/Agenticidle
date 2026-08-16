@@ -18,15 +18,20 @@ export function acceptProject(s: RunState, boardIndex: number, pod: number): boo
   if (!p) return false;
   s.board.splice(boardIndex, 1);
   p.acceptedAt = s.t;
+  p.nextPenaltyAt = s.t + p.deadlineIntervalSeconds;
   s.pods[pod] = p;
   if (s.boardRefillAt <= s.t) s.boardRefillAt = s.t + s.cfg.boardRefillSeconds;
   return true;
 }
 
 /**
- * Drag an idle agent onto a pod. No seat limit — they just crowd in, and
- * each extra body on the same pod lowers everyone there's one-shot chance
- * (see `effectiveOneShot`'s crowding penalty).
+ * Puts an idle agent to work on a pod. The floor no longer has a gesture
+ * that calls this directly on its own — `addAgentToPod` below hires and
+ * assigns in one step — but it's still the sim primitive underneath, and
+ * the balance harness's strategies use it that way. No seat limit below
+ * `maxAgentsPerPod`: agents just crowd in, and each extra body on the same
+ * pod lowers everyone there's one-shot chance (see `effectiveOneShot`'s
+ * crowding penalty).
  */
 export function assignAgent(s: RunState, agentId: number, pod: number): boolean {
   const a = s.agents.find((x) => x.id === agentId);
@@ -38,7 +43,12 @@ export function assignAgent(s: RunState, agentId: number, pod: number): boolean 
   return true;
 }
 
-/** Pull an agent off the floor. Idle agents burn nothing. */
+/**
+ * Pull an agent off the floor and back to idle. Idle agents burn nothing.
+ * Kept for the harness and for API completeness; the interactive floor has
+ * no idle tray to bench an agent into anymore, so `removeAgentFromPod`
+ * below is what the UI actually calls.
+ */
 export function benchAgent(s: RunState, agentId: number): boolean {
   const a = s.agents.find((x) => x.id === agentId);
   if (!a || a.state === "idle") return false;
@@ -101,10 +111,60 @@ export function hireAgent(s: RunState, cls: ClassName): boolean {
   return true;
 }
 
+/**
+ * The ADD control on a project card: hires a fresh agent of the requested
+ * class and puts it straight to work on this pod, in one step. There's no
+ * idle roster to drag from anymore — hiring and assigning are the same
+ * click. Gated by this pod's own occupancy cap (`maxAgentsPerPod`, so the
+ * desks stay legible) as well as the fleet-wide `maxRoster` that `hireAgent`
+ * already enforces.
+ */
+export function addAgentToPod(s: RunState, pod: number, cls: ClassName): boolean {
+  if (!s.pods[pod]) return false;
+  const occupancy = s.agents.filter((a) => a.pod === pod).length;
+  if (occupancy >= s.cfg.maxAgentsPerPod) return false;
+  if (!hireAgent(s, cls)) return false;
+  const hired = s.agents[s.agents.length - 1]!;
+  assignAgent(s, hired.id, pod);
+  return true;
+}
+
+/**
+ * The REMOVE control: lets go of the most recently added agent on this pod
+ * — outright, not benched. Firing is free, same as hiring is, and there's
+ * no idle tray left to bench them into.
+ */
+export function removeAgentFromPod(s: RunState, pod: number): boolean {
+  for (let i = s.agents.length - 1; i >= 0; i--) {
+    const a = s.agents[i];
+    if (a.pod !== pod) continue;
+    if (a.state === "blocked") {
+      const qi = s.blockedQueue.indexOf(a.id);
+      if (qi >= 0) s.blockedQueue.splice(qi, 1);
+    }
+    s.agents.splice(i, 1);
+    return true;
+  }
+  return false;
+}
+
+/** Every agent on a pod, removed outright. Shared by delivery and abandon. */
+function clearPod(s: RunState, pod: number): void {
+  for (let i = s.agents.length - 1; i >= 0; i--) {
+    const a = s.agents[i];
+    if (a.pod !== pod) continue;
+    if (a.state === "blocked") {
+      const qi = s.blockedQueue.indexOf(a.id);
+      if (qi >= 0) s.blockedQueue.splice(qi, 1);
+    }
+    s.agents.splice(i, 1);
+  }
+}
+
 /** Drop a contract to free the pod. Banks nothing. */
 export function abandonProject(s: RunState, pod: number): boolean {
   if (!s.pods[pod]) return false;
-  for (const a of s.agents) if (a.pod === pod) benchAgent(s, a.id);
+  clearPod(s, pod);
   s.pods[pod] = null;
   return true;
 }
@@ -156,12 +216,22 @@ export function tick(s: RunState, dtSeconds: number): void {
     s.tokens = Math.max(0, s.tokens - wanted);
   }
 
-  // --- decay ----------------------------------------------------------------
+  // --- renegotiation (missed-deadline decay) ---------------------------------
+  // Payout holds perfectly flat while a project is inside its deadline
+  // interval; missing it makes the client renegotiate: payout steps down once
+  // by penaltyFraction of the ORIGINAL offer, and the interval restarts for
+  // the next miss. `while`, not `if`, so a tick that spans more than one
+  // missed interval (a long dt) still applies every step it owes rather than
+  // silently swallowing them.
   for (const p of s.pods) {
     if (!p) continue;
-    const damp = 1 - cfg.decay.sizeDamping * (p.work / cfg.sizes.huge.work);
-    const lost = p.originalPayout * cfg.decay.perSecond * damp * dtSeconds;
-    p.payout = Math.max(p.originalPayout * cfg.decay.floor, p.payout - lost);
+    while (p.nextPenaltyAt <= s.t) {
+      p.payout = Math.max(
+        p.originalPayout * cfg.decay.floor,
+        p.payout - p.originalPayout * p.penaltyFraction
+      );
+      p.nextPenaltyAt += p.deadlineIntervalSeconds;
+    }
   }
 
   // --- agent runs -----------------------------------------------------------
@@ -173,7 +243,13 @@ export function tick(s: RunState, dtSeconds: number): void {
     if (a.pod !== null) podOccupancy[a.pod] = (podOccupancy[a.pod] ?? 0) + 1;
   }
 
-  for (const a of s.agents) {
+  // A snapshot, not a live view: a successful run in this loop can trigger
+  // `deliver()`, which now removes agents from `s.agents` outright instead
+  // of idling them in place. Splicing the very array a `for...of` is
+  // iterating skips or re-visits entries; iterating a copy keeps every
+  // agent visited exactly once this tick regardless of who gets removed
+  // along the way.
+  for (const a of s.agents.slice()) {
     if (a.state === "blocked") {
       a.blockedTime += dtSeconds;
       s.telemetry.agentBlockedSeconds += dtSeconds;
@@ -238,18 +314,9 @@ function deliver(s: RunState, pod: number): void {
   s.cash += p.payout;
   s.deliveries++;
   s.pods[pod] = null;
-  // Delivering frees every agent on it at once.
-  for (const a of s.agents) {
-    if (a.pod === pod) {
-      if (a.state === "blocked") {
-        const i = s.blockedQueue.indexOf(a.id);
-        if (i >= 0) s.blockedQueue.splice(i, 1);
-      }
-      a.state = "idle";
-      a.pod = null;
-      a.progress = 0;
-    }
-  }
+  // Delivering lets the whole team on it go, all at once — free to hire,
+  // free to let go, and there's no idle tray for them to wait around in.
+  clearPod(s, pod);
 }
 
 function repossess(s: RunState): void {

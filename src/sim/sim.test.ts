@@ -17,6 +17,9 @@ import {
   benchAgent,
   hireAgent,
   buyTokens,
+  addAgentToPod,
+  removeAgentFromPod,
+  abandonProject,
   finalise,
 } from "./tick";
 import { simulateRun } from "../harness/run";
@@ -65,7 +68,7 @@ describe("pro-rata on decayed value", () => {
     acceptProject(s, 0, 0);
     const p = s.pods[0]!;
     p.workDone = p.work / 2;
-    step(s, 120); // let it decay
+    step(s, 125); // past even a huge job's deadline window — let it miss
     expect(p.payout).toBeLessThan(p.originalPayout);
 
     const cashBefore = s.cash;
@@ -85,6 +88,79 @@ describe("pro-rata on decayed value", () => {
     finalise(a);
     finalise(b);
     expect(a.score).toBe(b.score);
+  });
+});
+
+describe("renegotiation (missed-deadline decay)", () => {
+  it("derives each project's window and penalty from its own size and difficulty", () => {
+    // Direct formula check, independent of which size/difficulty the RNG
+    // happened to spawn — every card on the board must satisfy it.
+    const s = createRun(DEFAULT_CONFIG, "formula");
+    for (const p of s.board) {
+      const expectedInterval =
+        DEFAULT_CONFIG.decay.baseIntervalSeconds + DEFAULT_CONFIG.decay.intervalPerWork * p.work;
+      const expectedPenalty =
+        DEFAULT_CONFIG.decay.basePenaltyFraction +
+        DEFAULT_CONFIG.decay.penaltyPerDifficultyPip * (p.difficulty - 1);
+      expect(p.deadlineIntervalSeconds).toBeCloseTo(expectedInterval, 10);
+      expect(p.penaltyFraction).toBeCloseTo(expectedPenalty, 10);
+    }
+  });
+
+  it("does not start the deadline clock for a card still sitting on the board", () => {
+    const s = createRun(DEFAULT_CONFIG, "board-safe");
+    const p = s.board[0]!;
+    expect(p.nextPenaltyAt).toBe(Infinity);
+    step(s, 500);
+    expect(s.board[0]).toBe(p); // untouched — never accepted, so never refilled either
+    expect(p.payout).toBe(p.originalPayout);
+  });
+
+  it("holds the payout perfectly flat inside the deadline window", () => {
+    const s = createRun(DEFAULT_CONFIG, "flat");
+    acceptProject(s, 0, 0);
+    const p = s.pods[0]!;
+    const original = p.payout;
+    step(s, p.deadlineIntervalSeconds - 1);
+    expect(p.payout).toBe(original);
+  });
+
+  it("steps the payout down by penaltyFraction of the ORIGINAL offer the instant the window is missed", () => {
+    const s = createRun(DEFAULT_CONFIG, "cliff");
+    acceptProject(s, 0, 0);
+    const p = s.pods[0]!;
+    const expected = p.originalPayout * (1 - p.penaltyFraction);
+    step(s, p.deadlineIntervalSeconds + 1);
+    expect(p.payout).toBeCloseTo(expected, 0);
+  });
+
+  it("keeps stepping down on every further miss, and never below the configured floor", () => {
+    const s = createRun(DEFAULT_CONFIG, "steps");
+    acceptProject(s, 0, 0);
+    const p = s.pods[0]!;
+    step(s, p.deadlineIntervalSeconds * 3 + 1);
+    const afterThreeMisses = Math.max(
+      p.originalPayout * DEFAULT_CONFIG.decay.floor,
+      p.originalPayout * (1 - 3 * p.penaltyFraction)
+    );
+    expect(p.payout).toBeCloseTo(afterThreeMisses, 0);
+
+    step(s, p.deadlineIntervalSeconds * 50); // however many more it takes to bottom out
+    expect(p.payout).toBeCloseTo(p.originalPayout * DEFAULT_CONFIG.decay.floor, 0);
+  });
+
+  it("a tick spanning more than one missed window still applies every step it owes", () => {
+    // A single large dt (e.g. a slow frame) must not let a project skip a
+    // penalty it was due — regression guard for the while-loop in tick().
+    const s = createRun(DEFAULT_CONFIG, "bigdt");
+    acceptProject(s, 0, 0);
+    const p = s.pods[0]!;
+    const expected = Math.max(
+      p.originalPayout * DEFAULT_CONFIG.decay.floor,
+      p.originalPayout * (1 - 4 * p.penaltyFraction)
+    );
+    tick(s, p.deadlineIntervalSeconds * 4 + 1); // one giant tick, four misses owed
+    expect(p.payout).toBeCloseTo(expected, 0);
   });
 });
 
@@ -147,7 +223,7 @@ describe("agents", () => {
     expect(s.tokens).toBe(mid);
   });
 
-  it("delivering frees every agent on the project at once", () => {
+  it("delivering lets the whole team on it go at once — there's no idle tray to wait in", () => {
     const cfg = cloneConfig(DEFAULT_CONFIG);
     cfg.classes.starter.oneShot = 1;
     cfg.classes.senior.oneShot = 1;
@@ -158,8 +234,18 @@ describe("agents", () => {
     for (const a of s.agents) assignAgent(s, a.id, 0);
     step(s, 40);
     expect(s.pods[0]).toBeNull();
-    expect(s.agents.every((a) => a.state === "idle")).toBe(true);
+    expect(s.agents.length).toBe(0); // fired outright, not benched idle
     expect(s.deliveries).toBe(1);
+  });
+
+  it("abandoning a project also lets its team go outright", () => {
+    const s = createRun(DEFAULT_CONFIG, "abandon");
+    acceptProject(s, 0, 0);
+    for (const a of s.agents) assignAgent(s, a.id, 0);
+    expect(s.agents.length).toBeGreaterThan(0);
+    expect(abandonProject(s, 0)).toBe(true);
+    expect(s.pods[0]).toBeNull();
+    expect(s.agents.length).toBe(0);
   });
 });
 
@@ -193,6 +279,79 @@ describe("hiring", () => {
     const hired = s.agents[s.agents.length - 1]!;
     expect(assignAgent(s, hired.id, 0)).toBe(true);
     expect(s.agents.filter((a) => a.pod === 0).length).toBe(s.agents.length);
+  });
+});
+
+describe("ADD / REMOVE on a project card", () => {
+  it("ADD hires and assigns to that pod in one step", () => {
+    const s = createRun(DEFAULT_CONFIG, "add");
+    acceptProject(s, 0, 0);
+    const before = s.agents.length;
+    expect(addAgentToPod(s, 0, "senior")).toBe(true);
+    expect(s.agents.length).toBe(before + 1);
+    const added = s.agents[s.agents.length - 1]!;
+    expect(added.cls).toBe("senior");
+    expect(added.state).toBe("running");
+    expect(added.pod).toBe(0);
+  });
+
+  it("ADD refuses on a pod with no project", () => {
+    const s = createRun(DEFAULT_CONFIG, "add-empty");
+    const before = s.agents.length;
+    expect(addAgentToPod(s, 1, "starter")).toBe(false);
+    expect(s.agents.length).toBe(before);
+  });
+
+  it("REMOVE lets go of the most recently added agent on that pod, and only that pod", () => {
+    const s = createRun(DEFAULT_CONFIG, "remove");
+    acceptProject(s, 0, 0);
+    acceptProject(s, 0, 1);
+    addAgentToPod(s, 0, "starter");
+    addAgentToPod(s, 1, "elite");
+    const lastOnPodZero = addAgentToPod(s, 0, "senior") && s.agents[s.agents.length - 1]!;
+    if (!lastOnPodZero) throw new Error("setup failed");
+    const before = s.agents.length;
+
+    expect(removeAgentFromPod(s, 0)).toBe(true);
+    expect(s.agents.length).toBe(before - 1);
+    expect(s.agents.some((a) => a.id === lastOnPodZero.id)).toBe(false); // the newest on pod 0
+    expect(s.agents.some((a) => a.cls === "elite" && a.pod === 1)).toBe(true); // pod 1 untouched
+  });
+
+  it("REMOVE on an empty pod is a no-op", () => {
+    const s = createRun(DEFAULT_CONFIG, "remove-empty");
+    acceptProject(s, 0, 0);
+    const before = s.agents.length;
+    expect(removeAgentFromPod(s, 0)).toBe(false);
+    expect(s.agents.length).toBe(before);
+  });
+
+  it("ADD stops once a pod hits maxAgentsPerPod, independent of the roster cap", () => {
+    const cfg = cloneConfig(DEFAULT_CONFIG);
+    cfg.maxAgentsPerPod = 3;
+    cfg.maxRoster = 999;
+    const s = createRun(cfg, "pod-cap");
+    acceptProject(s, 0, 0);
+    for (let i = 0; i < cfg.maxAgentsPerPod; i++) {
+      expect(addAgentToPod(s, 0, "starter")).toBe(true);
+    }
+    expect(addAgentToPod(s, 0, "starter")).toBe(false);
+    expect(s.agents.filter((a) => a.pod === 0).length).toBe(cfg.maxAgentsPerPod);
+  });
+
+  it("a delivered pod's agents are gone, not idle — the roster count returns to where it started", () => {
+    const cfg = cloneConfig(DEFAULT_CONFIG);
+    cfg.classes.starter.oneShot = 1;
+    cfg.difficulty.penaltyPerPip = 0;
+    const s = createRun(cfg, "add-after-deliver");
+    const before = s.agents.length; // the starting roster, all idle, untouched by this
+    acceptProject(s, 0, 0);
+    s.pods[0]!.work = 6;
+    addAgentToPod(s, 0, "starter");
+    expect(s.agents.length).toBe(before + 1);
+    step(s, 10);
+    expect(s.pods[0]).toBeNull();
+    expect(s.agents.length).toBe(before); // the hire is gone, not idle in the roster
   });
 });
 
@@ -319,18 +478,18 @@ describe("economy", () => {
     expect(elite / starter).toBeGreaterThan(1.5);
   });
 
-  it("zero tokens stalls work while the payout keeps decaying", () => {
+  it("zero tokens stalls work while the deadline clock keeps running", () => {
     const s = createRun(DEFAULT_CONFIG, "stall");
     s.tokens = 0;
     acceptProject(s, 0, 0);
     const p = s.pods[0]!;
     for (const a of s.agents) assignAgent(s, a.id, 0);
     const payBefore = p.payout;
-    step(s, 30);
+    step(s, 125); // past even a huge job's deadline window
     expect(p.workDone).toBe(0);
     expect(s.agents.every((a) => a.progress === 0)).toBe(true);
     expect(p.payout).toBeLessThan(payBefore);
-    expect(s.telemetry.stalledSeconds).toBeGreaterThan(25);
+    expect(s.telemetry.stalledSeconds).toBeGreaterThan(120);
   });
 
   it("token prices fall with deliveries, not clock time", () => {

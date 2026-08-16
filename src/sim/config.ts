@@ -36,6 +36,14 @@ export interface Config {
   /** Roster you begin the run with (reputation buys this between runs). */
   startingRoster: ClassName[];
   maxRoster: number;
+  /**
+   * Hard cap on agents stacked on a single pod at once. There's no seat
+   * *cost* below this — the crowding penalty and credit burn already tax
+   * every extra body — but past it the desks stop being legible on screen,
+   * so ADD just stops working. Sized to what the shrink-as-you-add art in
+   * `src/render/agent.ts` was built to handle.
+   */
+  maxAgentsPerPod: number;
   /** Pods on the floor. */
   podCount: number;
   /** Cards on the board at once. */
@@ -85,12 +93,30 @@ export interface Config {
   };
 
   decay: {
-    /** Fraction of the ORIGINAL payout lost per second, once accepted. */
-    perSecond: number;
-    /** Payout never decays below this fraction of original. */
+    /**
+     * Renegotiation, not drain: payout holds perfectly flat while a project is
+     * inside its deadline window, then steps down once the window is missed and
+     * the client renegotiates. Seconds of grace before the FIRST miss, at a
+     * zero-work job — see intervalPerWork for how bigger jobs get more.
+     */
+    baseIntervalSeconds: number;
+    /**
+     * Extra seconds of grace per work-second of job size, added to
+     * baseIntervalSeconds. Bigger jobs are slower by nature, so they get a
+     * longer window per miss — this is the "some need to be done fast, some
+     * have slower timers" axis.
+     */
+    intervalPerWork: number;
+    /** Fraction of the ORIGINAL payout lost at difficulty 1 on each missed deadline. */
+    basePenaltyFraction: number;
+    /**
+     * Extra penalty fraction per difficulty pip above 1. Harder jobs punish a
+     * miss harder — this is the "but punish you harder" axis, independent of
+     * the timer length above.
+     */
+    penaltyPerDifficultyPip: number;
+    /** Payout never decays below this fraction of original, no matter how many misses. */
     floor: number;
-    /** Larger jobs decay slower (they're longer by nature). 0 = off. */
-    sizeDamping: number;
   };
 
   /**
@@ -158,6 +184,7 @@ export const DEFAULT_CONFIG: Config = {
   startingTokens: 100_000,
   startingRoster: ["starter", "starter", "senior"],
   maxRoster: 24,
+  maxAgentsPerPod: 15,
   podCount: 4,
   boardSlots: 3,
   boardRefillSeconds: 4,
@@ -186,7 +213,13 @@ export const DEFAULT_CONFIG: Config = {
 
   hallucination: { tierThresholds: [0.25, 0.4, 0.55, 0.7] },
 
-  decay: { perSecond: 0.0022, floor: 0.12, sizeDamping: 0.35 },
+  decay: {
+    baseIntervalSeconds: 40,
+    intervalPerWork: 0.2,
+    basePenaltyFraction: 0.12,
+    penaltyPerDifficultyPip: 0.03,
+    floor: 0.12,
+  },
 
   reasoning: {
     low: { speed: 0.6, burn: 0.45 },
