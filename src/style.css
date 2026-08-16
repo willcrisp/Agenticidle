@@ -465,8 +465,8 @@ button {
 }
 
 /* Intelligence rank: stacked chevrons in the sprite's top-right corner, army
-   insignia style — more chevrons = smarter. Grey (--dim) because it's
-   information, not a click/drag/money/token. Absolute overlay: zero layout
+   insignia style — more chevrons = smarter, and the entry tier (Haikuu) wears
+   none at all. Gold, as a rank/prestige marker. Absolute overlay: zero layout
    height, and it never touches the pre-rendered sprite. Each `.chev` is the
    classic CSS chevron — a box showing only its top+right borders, rotated so
    the corner points up. */
@@ -483,8 +483,8 @@ button {
 .chev {
   width: 7px;
   height: 7px;
-  border-top: 2px solid var(--dim);
-  border-right: 2px solid var(--dim);
+  border-top: 2px solid #e8b923;
+  border-right: 2px solid #e8b923;
   transform: rotate(-45deg);
 }
 /* The class's player-facing name under the agent's own name. Grey = info. */
