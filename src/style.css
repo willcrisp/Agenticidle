@@ -497,12 +497,13 @@ button {
   color: var(--dim);
   margin-top: 3px;
 }
-/* Per-agent remove: a red X in the top-left corner, revealed on station hover,
-   so a player can fire one specific body instead of REMOVE's most-recent-first.
-   Red = click it. This is a desktop-only game, so a hover affordance is fair. */
+/* Per-agent remove: a red X in the bottom-left corner, revealed on station
+   hover, so a player can fire one specific body instead of REMOVE's
+   most-recent-first. Bottom-left keeps it clear of the top-centre blocked
+   speech bubble. Red = click it. Desktop-only game, so hover is fair. */
 .agent-x {
   position: absolute;
-  top: 0;
+  bottom: 0;
   left: 0;
   z-index: 6;
   display: none;
