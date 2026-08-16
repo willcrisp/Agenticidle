@@ -603,6 +603,53 @@ button {
   align-items: flex-start;
 }
 
+/* The idle heading carries the hire row alongside it — hiring produces an
+   idle agent, so it lives where idle agents live. */
+.tray-h-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.tray-h-row .tray-h {
+  margin-bottom: 0;
+}
+.hire-row {
+  display: flex;
+  gap: 6px;
+}
+/* Same click vocabulary as BUY MORE, coloured in the currency it spends
+   toward: an agent. No seat count on the label — the pod desks already show
+   that nothing is capped. */
+.hire-btn {
+  font-family: var(--px);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  padding: 6px 8px;
+  border: 1px solid var(--idle);
+  color: var(--idle);
+  background: #191813;
+  line-height: 1.6;
+  cursor: pointer;
+  text-align: left;
+}
+.hire-cost {
+  display: block;
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--fg-2);
+}
+/* Grey = ignore: not a live option right now (broke, or the roster is full).
+   Still clickable — a no-op, like any other invalid drop. */
+.hire-btn.is-unaffordable {
+  border-color: var(--faint);
+  color: var(--faint);
+}
+.hire-btn.is-unaffordable .hire-cost {
+  color: var(--faint);
+}
+
 /* A `.station` sitting in the idle tray is restyled to the mockup's
    `.bcard` look. Scoped to the tray container, not an id on the station,
    since the station node is the same pooled node used in a pod. */

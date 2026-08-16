@@ -7,6 +7,7 @@ import {
   assignAgent,
   retryAgent,
   benchAgent,
+  hireAgent,
   finalise,
 } from "./tick";
 import { simulateRun } from "../harness/run";
@@ -150,6 +151,48 @@ describe("agents", () => {
     expect(s.pods[0]).toBeNull();
     expect(s.agents.every((a) => a.state === "idle")).toBe(true);
     expect(s.deliveries).toBe(1);
+  });
+});
+
+describe("hiring", () => {
+  it("adds an idle agent of the requested class and spends the cash", () => {
+    const s = createRun(DEFAULT_CONFIG, "hire");
+    s.cash = s.cfg.classes.elite.cost * 2;
+    const before = s.agents.length;
+    const cash = s.cash;
+    expect(hireAgent(s, "senior")).toBe(true);
+    expect(s.agents.length).toBe(before + 1);
+    const hired = s.agents[s.agents.length - 1]!;
+    expect(hired.cls).toBe("senior");
+    expect(hired.state).toBe("idle");
+    expect(s.cash).toBe(cash - s.cfg.classes.senior.cost);
+  });
+
+  it("refuses when cash can't cover the class's cost", () => {
+    const s = createRun(DEFAULT_CONFIG, "hire-broke");
+    s.cash = s.cfg.classes.elite.cost - 1;
+    const before = s.agents.length;
+    expect(hireAgent(s, "elite")).toBe(false);
+    expect(s.agents.length).toBe(before);
+  });
+
+  it("refuses once the roster is at its cap", () => {
+    const cfg = cloneConfig(DEFAULT_CONFIG);
+    cfg.maxRoster = cfg.startingRoster.length;
+    cfg.startingCash = 1_000_000;
+    const s = createRun(cfg, "hire-full");
+    expect(hireAgent(s, "starter")).toBe(false);
+    expect(s.agents.length).toBe(cfg.startingRoster.length);
+  });
+
+  it("a hired agent can join a swarm already on a project, same as any other", () => {
+    const s = createRun(DEFAULT_CONFIG, "hire-swarm");
+    acceptProject(s, 0, 0);
+    for (const a of s.agents) assignAgent(s, a.id, 0);
+    hireAgent(s, "starter");
+    const hired = s.agents[s.agents.length - 1]!;
+    expect(assignAgent(s, hired.id, 0)).toBe(true);
+    expect(s.agents.filter((a) => a.pod === 0).length).toBe(s.agents.length);
   });
 });
 

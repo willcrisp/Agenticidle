@@ -10,6 +10,9 @@
 const POD_COUNT = 4;
 const REASONING_KEYS: readonly string[] = ["low", "medium", "high"];
 const REASONING_LABELS: readonly string[] = ["LOW", "MEDIUM", "HIGH"];
+/** The three agent classes on offer. Order matches the hire row, left to right. */
+export const HIRE_CLASSES: readonly string[] = ["starter", "senior", "elite"];
+const HIRE_LABELS: readonly string[] = ["STARTER", "SENIOR", "ELITE"];
 
 export interface PodRefs {
   root: HTMLElement;
@@ -35,6 +38,8 @@ export interface Refs {
   pods: PodRefs[]; // length 4
   trayIdle: HTMLElement; // container for idle agent nodes
   trayBoard: HTMLElement; // container for project cards
+  hireButtons: HTMLElement[]; // length 3, order matches HIRE_CLASSES
+  hireCosts: HTMLElement[]; // length 3, the price text inside each button
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -173,13 +178,42 @@ function buildPod(index: number): PodRefs {
   return { root, name, pips, payout, segs, reasoning, desks, emptySlot, open };
 }
 
-function buildTray(): { tray: HTMLElement; trayIdle: HTMLElement; trayBoard: HTMLElement } {
+function buildHireRow(): { hireRow: HTMLElement; hireButtons: HTMLElement[]; hireCosts: HTMLElement[] } {
+  const hireRow = el("div", "hire-row");
+  const hireButtons: HTMLElement[] = [];
+  const hireCosts: HTMLElement[] = [];
+  for (let i = 0; i < HIRE_CLASSES.length; i++) {
+    const cls = HIRE_CLASSES[i];
+    const label = HIRE_LABELS[i];
+    if (cls === undefined || label === undefined) continue;
+    const btn = el("button", "hire-btn");
+    btn.dataset.hire = cls;
+    const btnLabel = text("b", "", "+" + label);
+    const cost = text("span", "hire-cost", "$0");
+    btn.append(btnLabel, cost);
+    hireButtons.push(btn);
+    hireCosts.push(cost);
+    hireRow.append(btn);
+  }
+  return { hireRow, hireButtons, hireCosts };
+}
+
+function buildTray(): {
+  tray: HTMLElement;
+  trayIdle: HTMLElement;
+  trayBoard: HTMLElement;
+  hireButtons: HTMLElement[];
+  hireCosts: HTMLElement[];
+} {
   const tray = el("div", "tray");
 
   const idleHalf = el("div", "tray-half");
+  const idleHeadingRow = el("div", "tray-h-row");
   const idleHeading = text("div", "tray-h a", "DOING NOTHING");
+  const { hireRow, hireButtons, hireCosts } = buildHireRow();
+  idleHeadingRow.append(idleHeading, hireRow);
   const trayIdle = el("div", "tray-row tray-idle");
-  idleHalf.append(idleHeading, trayIdle);
+  idleHalf.append(idleHeadingRow, trayIdle);
 
   const boardHalf = el("div", "tray-half");
   const boardHeading = text("div", "tray-h b", "PROJECTS AVAILABLE");
@@ -188,7 +222,7 @@ function buildTray(): { tray: HTMLElement; trayIdle: HTMLElement; trayBoard: HTM
 
   tray.append(idleHalf, boardHalf);
 
-  return { tray, trayIdle, trayBoard };
+  return { tray, trayIdle, trayBoard, hireButtons, hireCosts };
 }
 
 /**
@@ -215,7 +249,7 @@ export function buildShell(root: HTMLElement): Refs {
     podsContainer.append(pod.root);
   }
 
-  const { tray, trayIdle, trayBoard } = buildTray();
+  const { tray, trayIdle, trayBoard, hireButtons, hireCosts } = buildTray();
 
   game.append(topbar, podsContainer, tray);
   root.append(game);
@@ -232,5 +266,7 @@ export function buildShell(root: HTMLElement): Refs {
     pods,
     trayIdle,
     trayBoard,
+    hireButtons,
+    hireCosts,
   };
 }
