@@ -29,9 +29,15 @@ DOM.**
     src/sim/       pure state + rules. No DOM, no anime.js, no window.
     src/render/    reads sim state, writes to DOM
     src/fx/        anime.js only. Discrete events, never continuous state.
-    src/ui/        shop, run summary, reputation, title
+    src/save/      studio keys, save blob, localStorage + save API client
+    src/ui/        start screen, high scores, studio panel; shop and run summary
     src/harness/   headless balance testing
+    server/        Node http: serves dist/ and the save + leaderboard API
     main.ts        loop, input, wiring
+
+`src/save/` must never import from `src/sim/`, and `src/sim/` must never import
+from `src/save/`. Persistence is not simulation. main.ts is the only place the
+two meet, and it is where a finished run gets recorded.
 
 If pausing the game must freeze it, the sim owns it. The payout countdown,
 credit drain, agent run progress and the run clock are all sim. Slice pops,
@@ -45,6 +51,10 @@ to prevent.
 **Every tunable number lives in `src/sim/config.ts` and nowhere else.** No magic
 numbers in tick, render or fx. If you need a new constant, add it to Config with
 a comment explaining what it does, so it appears in the tuning dashboard.
+
+The save layer is the one exception, and it has its own file: `src/save/config.ts`.
+Key length, name limits and retry policy are not game tunables — they do not
+change how a run plays and must not appear in the balance dashboard.
 
 Nothing currently in `config.ts` is signed off. The values put every lever in
 live territory; they are a starting point for playtesting.
@@ -110,9 +120,26 @@ player has to be taught is a design failure, not a feature.
     npm run dashboard # rebuild tools/agent-idol-balance-harness.html
     npm run dev       # Vite dev server (once the client exists)
 
+## Persistence
+
+Tech stack §7 is decided and load-bearing: **only reputation, unlocks, best runs
+and the player's name persist. A run in progress is never saved — the clock is
+the point.** Do not add mid-run save/resume without an explicit decision to
+overturn that; a resumable timed score-attack makes the one number meaningless.
+
+Identity is a generated four-word **studio key**, held in localStorage and
+mirrored to the server under a double hash. It is a bearer token, not an
+account — see the header comment in `src/save/key.ts` for the full rationale,
+and `README.md` for the deployment side.
+
+The high scores board is client-authoritative and therefore spoofable. This is
+recorded, not hidden. Fixing it means re-simulating a replay log server-side,
+which the seeded deterministic sim already makes possible.
+
 ## Where the build is
 
-Steps 1–4 and 6 are done. The game is playable end to end:
+Steps 1–4 and 6 are done, plus saves, the start screen and the leaderboard.
+The game is playable end to end:
 
 - **1, 6** — sim core, seeded and deterministic, plus the headless balance
   harness. 23 passing assertions.
@@ -121,8 +148,19 @@ Steps 1–4 and 6 are done. The game is playable end to end:
 - **3** — the loop. Fixed 30Hz sim step, decoupled render, pause.
 - **4** — the two gestures. Click to retry, drag to assign/accept.
 
-Steps 5 and 7–9 are not started: the shop, the anime.js pass, audio, the run
-summary and the tutorial ramp.
+- **saves** — `src/save/` and `server/`. Studio keys, localStorage, the save API
+  and the leaderboard. 27 passing assertions on top of the sim's 23.
+- **start screen** — `src/ui/start.ts`. Gates the run clock; carries the menu,
+  the studio key and the high scores.
+
+Steps 5 and 7–9 are still open: the shop, the anime.js pass, audio, the run
+summary and the tutorial ramp. Two hooks are waiting for them:
+
+- `reputation` is in the save and always 0. Final cash converts to reputation
+  (handover §8) but the rate is open question #2, so nothing invents one.
+- `roster` is in the save and unused. The run still starts from
+  `cfg.startingRoster`, and `RunState` is built once at boot rather than at
+  START, so wiring a saved roster into a run is part of the shop work.
 
 See `README.md` for how to run and play it, and `docs/archive/` for the
 planning documents those completed steps were built from.

@@ -6,6 +6,10 @@ import { buildShell } from "./render/shell";
 import { render } from "./render/floor";
 import { tick, acceptProject, assignAgent, retryAgent } from "./sim/tick";
 import { mountGestures, syncFocusability } from "./input/gestures";
+import { SaveManager } from "./save/store";
+import { recordRun } from "./save/schema";
+import { mountStudio } from "./ui/studio";
+import { mountStart } from "./ui/start";
 
 const params = new URLSearchParams(window.location.search);
 const seed = params.get("seed") ?? "seed-1";
@@ -42,6 +46,36 @@ function setOverlayVisible(visible: boolean): void {
 }
 
 // ---------------------------------------------------------------------------
+// Saves. The sim knows nothing about any of this — it stays pure and
+// deterministic, and main.ts is the only place the two meet.
+//
+// Only reputation, unlocks and best runs persist. A run in progress is never
+// saved: the clock is the point, and a resumable timed run makes the one number
+// at the end meaningless. See docs/agentidoltechstack.pdf §7.
+// ---------------------------------------------------------------------------
+
+const saves = new SaveManager();
+// Fire-and-forget: the game is fully playable while this is in flight, and
+// fully playable if it never succeeds.
+void saves.sync();
+
+/**
+ * Records the finished run exactly once, however the loop got here.
+ *
+ * Score is final cash — the sim's `finalise()` sets `s.score = round(s.cash)`.
+ * The save is written first and unconditionally; the leaderboard submission is
+ * allowed to fail, because a board the server never received is a lesser
+ * failure than a run the player loses.
+ */
+let runRecorded = false;
+function recordFinishedRun(): void {
+  if (runRecorded) return;
+  runRecorded = true;
+  saves.update(recordRun(saves.getState().save, state.score, state.seed));
+  void saves.submitScore(state.score, state.seed);
+}
+
+// ---------------------------------------------------------------------------
 // The loop — fixed 30Hz sim step, decoupled render, requestAnimationFrame
 // only. See CLAUDE.md: two independent clocks driving the same value is the
 // bug class this file exists to avoid.
@@ -73,6 +107,7 @@ function frame(now: number): void {
   if (state.finished) {
     // eslint-disable-next-line no-console
     console.log("run finished, score:", state.score);
+    recordFinishedRun();
     return; // do not schedule another frame
   }
 
@@ -89,19 +124,36 @@ function stopLoop(): void {
   cancelAnimationFrame(raf);
 }
 
+// The studio panel pauses the run, but the PAUSED banner behind it is just
+// noise — the panel is its own explanation.
+let studioOpen = false;
+
+/**
+ * False until the player presses START.
+ *
+ * Every entry point into the loop is guarded on this. Without it, blurring and
+ * refocusing the window while the start screen is up would run `resume()` and
+ * quietly start the clock behind the start screen.
+ */
+let runStarted = false;
+
+function syncPauseOverlay(): void {
+  setOverlayVisible(runStarted && paused && !studioOpen);
+}
+
 function pause(manual: boolean): void {
-  if (paused) return;
+  if (!runStarted || paused) return;
   paused = true;
   pausedByBlur = !manual;
   stopLoop();
-  setOverlayVisible(true);
+  syncPauseOverlay();
 }
 
 function resume(): void {
-  if (!paused) return;
+  if (!runStarted || !paused) return;
   paused = false;
   pausedByBlur = false;
-  setOverlayVisible(false);
+  syncPauseOverlay();
   startLoop();
 }
 
@@ -113,7 +165,46 @@ function togglePause(): void {
   }
 }
 
-startLoop();
+// A pause the studio panel opened must not resume a run the player had already
+// paused deliberately.
+let pausedBeforeStudio = false;
+
+const studio = mountStudio(stageEl, saves, (open) => {
+  studioOpen = open;
+  if (open) {
+    pausedBeforeStudio = paused;
+    pause(true);
+  } else if (!pausedBeforeStudio) {
+    resume();
+  }
+  syncPauseOverlay();
+});
+
+refs.studioBtn.addEventListener("pointerdown", () => {
+  // The start screen carries the same controls, so the panel would only be
+  // covering itself.
+  if (start.isVisible()) return;
+  if (studio.isOpen()) studio.close();
+  else studio.open();
+});
+
+// ---------------------------------------------------------------------------
+// The start screen gates the clock.
+//
+// The run does not begin at boot: the loop starts when the player presses
+// START. That matters more here than in most games — the clock is the score,
+// so a run that has already begun while someone reads their studio key has
+// silently cost them.
+// ---------------------------------------------------------------------------
+
+const start = mountStart(stageEl, saves, () => {
+  runStarted = true;
+  // startLoop() reseeds `last`, so the time spent reading the start screen
+  // never arrives as one enormous delta on the first frame.
+  startLoop();
+});
+
+start.show();
 
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) {
@@ -135,7 +226,12 @@ window.addEventListener("focus", () => {
 
 window.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
-    togglePause();
+    // Escape backs out of the studio panel before it touches the run's own
+    // pause state, so one key never means two things at once. There is nothing
+    // to pause before the run has started.
+    if (start.isVisible()) return;
+    if (studio.isOpen()) studio.close();
+    else togglePause();
   }
 });
 

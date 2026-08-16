@@ -31,6 +31,7 @@ export interface Refs {
   buyBtn: HTMLElement;
   clock: HTMLElement;
   pauseBtn: HTMLElement;
+  studioBtn: HTMLElement;
   pods: PodRefs[]; // length 4
   trayIdle: HTMLElement; // container for idle agent nodes
   trayBoard: HTMLElement; // container for project cards
@@ -59,6 +60,7 @@ function buildTopbar(): {
   buyBtn: HTMLElement;
   clock: HTMLElement;
   pauseBtn: HTMLElement;
+  studioBtn: HTMLElement;
 } {
   const topbar = el("div", "topbar");
 
@@ -90,9 +92,23 @@ function buildTopbar(): {
   const pauseBtn = text("div", "pause", "❚❚");
   pauseBtn.id = "pause";
 
-  topbar.append(money, credits, buyBtn, spacer, clock, pauseBtn);
+  // Grey, and sat with the pause button rather than the money/credit cluster:
+  // it is chrome, not a game action. Nothing on the floor depends on it.
+  const studioBtn = text("div", "studio-btn-top", "STUDIO");
+  studioBtn.id = "studio";
 
-  return { topbar, money: moneyValue, creditFill, creditLabel, buyBtn, clock, pauseBtn };
+  topbar.append(money, credits, buyBtn, spacer, clock, studioBtn, pauseBtn);
+
+  return {
+    topbar,
+    money: moneyValue,
+    creditFill,
+    creditLabel,
+    buyBtn,
+    clock,
+    pauseBtn,
+    studioBtn,
+  };
 }
 
 function buildPod(index: number): PodRefs {
@@ -184,7 +200,8 @@ export function buildShell(root: HTMLElement): Refs {
 
   const game = el("div", "game");
 
-  const { topbar, money, creditFill, creditLabel, buyBtn, clock, pauseBtn } = buildTopbar();
+  const { topbar, money, creditFill, creditLabel, buyBtn, clock, pauseBtn, studioBtn } =
+    buildTopbar();
 
   const podsContainer = el("div", "pods");
   const pods: PodRefs[] = [];
@@ -207,6 +224,7 @@ export function buildShell(root: HTMLElement): Refs {
     buyBtn,
     clock,
     pauseBtn,
+    studioBtn,
     pods,
     trayIdle,
     trayBoard,

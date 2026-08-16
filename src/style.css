@@ -759,3 +759,322 @@ button {
   font-size: 24px;
   letter-spacing: 0.05em;
 }
+
+/* ---- studio panel (save/identity) ----------------------------------------
+   Deliberately colourless. Five colours, five meanings: red = click it,
+   amber = drag it, green = money, blue = credits, grey = ignore. This panel
+   carries no game meaning, so it takes no colour — and a red button here
+   would read as "click me" during a run, which is the opposite of true.
+   Existing grey tokens only; no new custom properties. */
+.studio-btn-top {
+  font-family: var(--px);
+  font-size: 12px;
+  padding: 12px 15px;
+  border: 1px solid var(--line);
+  color: var(--dim);
+  background: #151a1e;
+  line-height: 1;
+  flex: none;
+}
+
+.studio-overlay {
+  display: none;
+  position: absolute;
+  inset: 0;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  z-index: 1100; /* above the pause overlay — opening it also pauses */
+}
+
+.studio-overlay.is-visible {
+  display: flex;
+}
+
+.studio-panel {
+  width: 560px;
+  padding: 28px 30px;
+  background: var(--pod);
+  border: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.studio-h {
+  font-family: var(--px);
+  font-size: 12px;
+  color: var(--dim);
+  letter-spacing: 0.08em;
+}
+
+.studio-key {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 26px;
+  color: var(--fg);
+  letter-spacing: 0.04em;
+  /* The one thing on the page a player may need to transcribe by hand. */
+  user-select: all;
+  word-break: break-all;
+}
+
+.studio-note {
+  font-family: var(--sans);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--dim);
+}
+
+.studio-actions {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.studio-btn {
+  font-family: var(--px);
+  font-size: 11px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  color: var(--fg-2);
+  background: var(--pod-2);
+  line-height: 1;
+  cursor: pointer;
+  flex: none;
+}
+
+.studio-btn:hover:not(:disabled) {
+  border-color: var(--faint);
+  color: var(--fg);
+}
+
+.studio-btn:disabled {
+  color: var(--faint);
+  cursor: default;
+}
+
+.studio-btn:focus-visible {
+  outline: 2px solid var(--fg-2);
+  outline-offset: 2px;
+}
+
+/* Second press of NEW STUDIO. Brighter, not redder — it is still not a game
+   action, so it must not join the red vocabulary. */
+.studio-btn.is-confirming {
+  color: var(--fg);
+  border-color: var(--fg-2);
+}
+
+.studio-input {
+  flex: 1;
+  font-family: var(--mono);
+  font-size: 14px;
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--fg);
+  text-transform: uppercase;
+  min-width: 0;
+}
+
+.studio-input:focus-visible {
+  outline: none;
+  border-color: var(--fg-2);
+}
+
+.studio-input::placeholder {
+  color: var(--faint);
+  text-transform: none;
+}
+
+.studio-sep {
+  height: 1px;
+  background: var(--line-soft);
+  margin: 4px 0;
+}
+
+.studio-msg {
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--fg-2);
+  min-height: 16px; /* reserved so appearing text never shifts the panel */
+}
+
+.studio-stats,
+.studio-status {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--dim);
+  letter-spacing: 0.03em;
+}
+
+.studio-close {
+  align-self: flex-start;
+  margin-top: 6px;
+}
+
+/* ---- start screen --------------------------------------------------------
+   Gates the run clock. Above every other overlay, because nothing behind it is
+   interactive yet. */
+.start-overlay {
+  display: none;
+  position: absolute;
+  inset: 0;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  z-index: 1200;
+}
+
+.start-overlay.is-visible {
+  display: flex;
+}
+
+.start-panel {
+  width: 620px;
+  padding: 34px 38px;
+  background: var(--pod);
+  border: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.start-title {
+  font-family: var(--px);
+  font-size: 34px;
+  font-weight: 400;
+  color: var(--fg);
+  letter-spacing: 0.06em;
+  line-height: 1;
+}
+
+.start-tagline {
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--dim);
+}
+
+.start-summary {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--fg-2);
+  letter-spacing: 0.03em;
+  min-height: 15px; /* reserved so a first-time player sees the same layout */
+}
+
+/* The only thing on this screen worth clicking, so it is the only thing that
+   takes red. That is the floor's vocabulary (red = click it) applied
+   consistently, not an exception to it. */
+.start-btn {
+  font-family: var(--px);
+  font-size: 15px;
+  padding: 18px 20px;
+  border: 1px solid var(--fail);
+  color: var(--fail);
+  background: #1a1416;
+  line-height: 1;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+.start-btn:hover {
+  background: #211719;
+}
+
+.start-btn:focus-visible {
+  outline: 2px solid var(--fail);
+  outline-offset: 3px;
+}
+
+/* The identity block is reference material here, not the headline. */
+.start-identity {
+  display: flex;
+  flex-direction: column;
+}
+
+.start-identity .studio-key {
+  font-size: 20px;
+}
+
+.identity {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ---- start screen views and high scores ---------------------------------- */
+.start-view {
+  display: none;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.start-view.is-visible {
+  display: flex;
+}
+
+.scores {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.scores-table {
+  display: flex;
+  flex-direction: column;
+  /* The board is the one list here that can outgrow the panel. It scrolls
+     inside itself so the panel never changes height between views. */
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.scores-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 7px 2px;
+  border-bottom: 1px solid var(--line-soft);
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--fg-2);
+}
+
+.scores-rank {
+  width: 28px;
+  color: var(--dim);
+  text-align: right;
+  flex: none;
+}
+
+.scores-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scores-score {
+  font-weight: 700;
+  color: var(--fg);
+  flex: none;
+}
+
+/* Your own row. Brighter, not coloured — a finished score in a table is not a
+   live quantity you are managing, so it does not borrow the money green. */
+.scores-row.is-me {
+  color: var(--fg);
+  border-bottom-color: var(--faint);
+}
+
+.scores-row.is-me .scores-rank {
+  color: var(--fg-2);
+}
+
+/* A button that is a direct child of a view is a lone action (BACK), not part
+   of a row — it takes its own width rather than stretching the column. */
+.start-view > .studio-btn {
+  align-self: flex-start;
+}

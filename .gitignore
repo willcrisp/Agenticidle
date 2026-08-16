@@ -2,3 +2,6 @@ node_modules/
 .build/
 .smoke/
 dist/
+
+# File-backed studio saves, when running without DATABASE_URL
+.data/

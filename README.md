@@ -24,6 +24,9 @@ the balance in one go, and it tells you what to fix rather than just failing.
 
 ### Play it
 
+You land on a start screen: `START RUN`, `HIGH SCORES`, `STUDIO KEY`. The clock
+does not begin until you press start, so reading your key costs you nothing.
+
 The run is 30 minutes and the clock never stops. There are **two gestures**:
 
 | Gesture | On what | What happens |
@@ -61,10 +64,78 @@ Five colours, five meanings, nothing else is coloured.
 The clock is deliberately never red. Red means "click me", and you cannot
 click the clock.
 
+### Saves, studio keys and high scores
+
+There are no accounts. On first visit the game generates a **studio key** — four
+words, e.g. `RIVET-SABLE-NOVA-OPAL` — and saves to `localStorage`. You are never
+asked for anything; the key only matters when you want the same studio on a
+different machine, where you type it into `STUDIO KEY` on the start screen.
+
+Keys are generated, never chosen, because a chosen password is the failure mode:
+somebody types `agent` on day one and lands in a stranger's studio. Four words
+from a 256-word list is 2^32 ≈ 4.3 billion, and the server rate-limits lookups.
+You *may* set a custom key, but it has to clear 12 characters.
+
+The key never leaves the browser. The client sends `SHA-256(key)` as a token in
+the `x-studio-token` header — never in a URL, which is the part of a request
+that gets logged — and the server stores under `SHA-256(token)`. A dump of the
+datastore yields neither the key nor a usable token.
+
+**What this is not.** A studio key is a bearer token: whoever holds it holds the
+studio, and a lost key is unrecoverable — no email, no reset. That is the right
+trade for a save holding a reputation number and a list of best runs, and the
+wrong one for anything else.
+
+**The high scores board is client-authoritative.** The browser sends a number
+and the server believes it, so anyone with devtools can post any score. One row
+per studio, best-score-wins, a sanity ceiling and rate limiting are in place;
+none of that makes it trustworthy. The sim is seeded and deterministic
+specifically so a replay log could be re-simulated server-side later. Until that
+exists, treat the board as social, not competitive.
+
+Per tech stack §7, **a run in progress is never saved.** Only reputation,
+unlocks, best runs and your name persist. The clock is the point.
+
+### Host it
+
+The server is plain Node with no framework — it serves the Vite build and a
+four-route API.
+
+```bash
+npm run serve      # build, then serve on :3000
+```
+
+On Railway: point it at the repo and it will run `npm run build` then
+`npm start`. Add a **Postgres** service and Railway injects `DATABASE_URL`,
+which is all the server needs to switch off the file store.
+
+| Variable | Default | What it does |
+|---|---|---|
+| `PORT` | `3000` | listen port |
+| `DATABASE_URL` | — | use Postgres. **Set this on Railway.** |
+| `SAVE_DATA_DIR` | `.data` | file store path, used when there is no `DATABASE_URL` |
+| `STATIC_DIR` | `dist` | where the built game lives |
+| `RATE_LIMIT_PER_MIN` | `60` | API requests per IP per minute |
+
+Without `DATABASE_URL` the server writes JSON files. A Railway container's
+filesystem is **ephemeral unless a volume is mounted**, so that combination
+loses every studio on redeploy — the server warns loudly at boot if it detects
+it. Use Postgres, or mount a volume and set `SAVE_DATA_DIR` to it.
+
+```
+GET  /api/save     x-studio-token: <hex>    the save, or 404 if new
+PUT  /api/save     x-studio-token: <hex>    store it
+PUT  /api/score    x-studio-token: <hex>    submit a run (best score wins)
+GET  /api/scores?limit=25                   the board; flags your row if you send a token
+GET  /api/health                            which store is active
+```
+
 ### Commands
 
 ```bash
-npm run dev        # Vite dev server
+npm run dev        # Vite dev server; proxies /api to :3000 if it is running
+npm start          # serve dist/ + the save API on :3000
+npm run serve      # build, then the above
 npm run build      # production build to dist/
 npm run preview    # serve the production build
 npm test           # sim invariants — 23 assertions, must stay green
@@ -118,10 +189,17 @@ src/sim/       pure state + rules. No DOM, no anime.js, no window.
 src/render/    reads sim state, writes to DOM. Never mutates state.
 src/input/     the two gestures. Mutates only via sim/tick.ts actions.
 src/fx/        anime.js only. Discrete events, never continuous state.  (empty)
-src/ui/        shop, run summary, reputation, title.                    (empty)
+src/save/      studio keys, the save blob, localStorage + the save API
+src/ui/        start screen, high scores, studio panel. Shop and run
+               summary still to come.
 src/harness/   headless balance testing
+server/        Node http: serves dist/ and the save + leaderboard API
 main.ts        the loop, pause, and all the wiring
 ```
+
+`src/save/` never imports from `src/sim/`, and `src/sim/` never imports from
+`src/save/`. The sim stays pure and deterministic; main.ts is the only place
+the two meet.
 
 If pausing the game must freeze it, the sim owns it — the payout countdown,
 credit drain, run progress and the run clock are all sim. Sprite walks, bubble
