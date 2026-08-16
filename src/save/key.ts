@@ -29,20 +29,30 @@ import { KEY_SEPARATOR, KEY_WORDS, MIN_CUSTOM_KEY_LENGTH } from "./config";
 import { WORDS } from "./words";
 
 /**
- * Generates a fresh studio key, e.g. `RIVET-SABLE-NOVA-OPAL`.
+ * Generates a fresh studio key, e.g. `COMMIT-KERNEL-SANDBOX-PIVOT`.
  *
- * Uses rejection sampling off `crypto.getRandomValues` rather than
- * `Math.random()`: the wordlist is 256 long and a byte is 256 wide, so every
- * byte maps to exactly one word with no modulo bias at all.
+ * Randomness comes from `crypto.getRandomValues`, never `Math.random()`. The
+ * wordlist is 256 long and a byte is 256 wide, so a byte maps to a word with no
+ * modulo bias to correct for.
+ *
+ * Words are drawn WITHOUT replacement. Independent draws repeat a word in about
+ * 2.3% of keys, and `INDENT-INDENT-PAYLOAD-SYMBOL` reads to a player as a bug in
+ * the generator rather than as chance. The cost is 256·255·254·253 instead of
+ * 256^4 — 31.97 bits instead of 32, which changes nothing that matters.
  */
 export function generateKey(): string {
-  const bytes = new Uint8Array(KEY_WORDS);
-  crypto.getRandomValues(bytes);
+  const chosen = new Set<number>();
   const words: string[] = [];
-  for (let i = 0; i < KEY_WORDS; i++) {
-    // Non-null: bytes is length KEY_WORDS and WORDS is length 256, so every
-    // byte indexes a real word.
-    words.push(WORDS[bytes[i]!]!);
+  const byte = new Uint8Array(1);
+  while (words.length < KEY_WORDS) {
+    crypto.getRandomValues(byte);
+    const index = byte[0]!;
+    // Redrawing a collision keeps every distinct tuple equally likely; picking
+    // "the next free word" instead would bias toward whatever follows a
+    // popular index.
+    if (chosen.has(index)) continue;
+    chosen.add(index);
+    words.push(WORDS[index]!);
   }
   return words.join(KEY_SEPARATOR);
 }
@@ -51,9 +61,9 @@ export function generateKey(): string {
  * Reduces a key to its canonical form for hashing and comparison.
  *
  * Deliberately lenient: case, spacing, punctuation and stray whitespace are all
- * discarded, so `rivet sable nova opal`, `Rivet-Sable-Nova-Opal` and
- * `RIVETSABLENOVAOPAL` are the same studio. Someone re-typing a key off another
- * screen should not be able to get it subtly wrong.
+ * discarded, so `commit kernel sandbox pivot`, `Commit-Kernel-Sandbox-Pivot`
+ * and `COMMITKERNELSANDBOXPIVOT` are the same studio. Someone re-typing a key
+ * off another screen should not be able to get it subtly wrong.
  *
  * The consequence is that differently-spaced strings with the same letters
  * collide. For generated keys that is unreachable, and for custom keys it is a
@@ -63,11 +73,22 @@ export function normaliseKey(raw: string): string {
   return raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
 
-/** Formats a key for display, re-grouping a generated key into its words. */
+/**
+ * Canonical display form of a key: uppercase, one separator between words.
+ *
+ * `normaliseKey` throws separators away, which is right for hashing and wrong
+ * for showing the player their own key back. Without this, recalling a studio
+ * by typing `commit kernel sandbox pivot` would leave it displayed as
+ * `COMMIT KERNEL SANDBOX PIVOT` while the same studio on the machine it came
+ * from shows `COMMIT-KERNEL-SANDBOX-PIVOT`. Both work — normalisation is
+ * lenient — but a player comparing two screens should not have to know that.
+ *
+ * A key typed with no separators at all stays that way. Re-splitting it would
+ * mean segmenting against the wordlist, which is only possible for generated
+ * keys and would quietly mangle custom ones.
+ */
 export function formatKey(raw: string): string {
-  const trimmed = raw.trim();
-  if (trimmed.includes(KEY_SEPARATOR)) return trimmed.toUpperCase();
-  return trimmed.toUpperCase();
+  return raw.trim().toUpperCase().replace(/[^A-Z0-9]+/g, KEY_SEPARATOR);
 }
 
 export type KeyRejection =

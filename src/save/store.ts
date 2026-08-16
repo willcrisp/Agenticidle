@@ -20,7 +20,7 @@ import {
   REMOTE_RETRIES,
   REMOTE_TIMEOUT_MS,
 } from "./config";
-import { canHash, generateKey, keyToToken, normaliseKey, validateKey } from "./key";
+import { canHash, formatKey, generateKey, keyToToken, normaliseKey, validateKey } from "./key";
 import { cleanName, displayName, emptySave, mergeSaves, parseSave, type Save } from "./schema";
 
 /** One row of the high scores table. */
@@ -391,7 +391,9 @@ export class SaveManager {
     try {
       const token = await keyToToken(raw);
       const remote = await fetchRemote(token);
-      this.key = raw.trim().toUpperCase();
+      // Stored in canonical form, so the same studio looks identical on every
+      // machine regardless of how it was typed in.
+      this.key = formatKey(raw);
       saveLocalKey(this.key);
       this.save = remote ?? emptySave();
       saveLocal(this.save);

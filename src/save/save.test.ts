@@ -8,7 +8,7 @@ import {
   MIN_CUSTOM_KEY_LENGTH,
   SAVE_VERSION,
 } from "./config";
-import { generateKey, keyToToken, normaliseKey, validateKey } from "./key";
+import { formatKey, generateKey, keyToToken, normaliseKey, validateKey } from "./key";
 import {
   cleanName,
   displayName,
@@ -41,19 +41,42 @@ describe("studio keys", () => {
     expect(seen.size).toBe(500);
   });
 
+  it("never repeats a word inside one key", () => {
+    // Not a security property — 0.03 bits. A key showing the same word twice
+    // reads to a player as a broken generator.
+    for (let i = 0; i < 2000; i++) {
+      const words = generateKey().split("-");
+      expect(new Set(words).size).toBe(words.length);
+    }
+  });
+
   it("uses the whole wordlist rather than a biased slice", () => {
-    // Guards the rejection-free byte->word mapping: with 5000 draws every one
-    // of the 256 words should appear, and a modulo bug would starve the tail.
+    // Guards the byte->word mapping: with 5000 draws every one of the 256 words
+    // should appear, and a modulo bug would starve the tail of the list.
     const seen = new Set<string>();
     for (let i = 0; i < 5000; i++) for (const w of generateKey().split("-")) seen.add(w);
     expect(seen.size).toBe(WORDS.length);
   });
 
   it("normalises case, spacing and punctuation to one form", () => {
-    const canonical = normaliseKey("RIVET-SABLE-NOVA-OPAL");
-    expect(normaliseKey("rivet sable nova opal")).toBe(canonical);
-    expect(normaliseKey("  Rivet_Sable.Nova/Opal  ")).toBe(canonical);
-    expect(normaliseKey("RivetSableNovaOpal")).toBe(canonical);
+    const canonical = normaliseKey("COMMIT-KERNEL-SANDBOX-PIVOT");
+    expect(normaliseKey("commit kernel sandbox pivot")).toBe(canonical);
+    expect(normaliseKey("  Commit_Kernel.Sandbox/Pivot  ")).toBe(canonical);
+    expect(normaliseKey("CommitKernelSandboxPivot")).toBe(canonical);
+  });
+
+  it("displays a recalled key in the same form it was generated in", () => {
+    // Typing a key with spaces must not leave the studio looking different from
+    // the machine it came from. Normalisation is lenient, so both work — but a
+    // player comparing two screens should not have to know that.
+    const generated = "COMMIT-KERNEL-SANDBOX-PIVOT";
+    expect(formatKey("commit kernel sandbox pivot")).toBe(generated);
+    expect(formatKey("  Commit_Kernel.Sandbox/Pivot  ")).toBe(generated);
+    expect(formatKey(generated)).toBe(generated);
+    // Formatting must never change which studio a key resolves to.
+    expect(normaliseKey(formatKey("commit kernel sandbox pivot"))).toBe(
+      normaliseKey("commit kernel sandbox pivot"),
+    );
   });
 
   it("rejects short and empty custom keys, accepts generated ones", () => {
@@ -66,12 +89,84 @@ describe("studio keys", () => {
   });
 
   it("derives a stable hex token that is not the key", async () => {
-    const key = "RIVET-SABLE-NOVA-OPAL";
+    const key = "COMMIT-KERNEL-SANDBOX-PIVOT";
     const token = await keyToToken(key);
     expect(token).toMatch(/^[0-9a-f]{64}$/);
-    expect(token).toBe(await keyToToken("rivet sable nova opal"));
-    expect(token).not.toContain("RIVET");
-    expect(await keyToToken("RIVET-SABLE-NOVA-AMBER")).not.toBe(token);
+    expect(token).toBe(await keyToToken("commit kernel sandbox pivot"));
+    expect(token).not.toContain("COMMIT");
+    expect(await keyToToken("COMMIT-KERNEL-SANDBOX-BISECT")).not.toBe(token);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// the wordlist
+//
+// A studio key gets written on paper and typed on a different machine, so these
+// are transcription properties, not style preferences. They are asserted rather
+// than eyeballed because the list is 256 entries long and a bad pair added
+// later would be invisible in review.
+// ---------------------------------------------------------------------------
+
+/**
+ * True when two words are at most one insert, delete or substitution apart.
+ *
+ * "At most", so identical strings also return true. That is harmless here: the
+ * caller only compares distinct indices of a list already asserted to be
+ * duplicate-free.
+ */
+function oneEditApart(a: string, b: string): boolean {
+  if (Math.abs(a.length - b.length) > 1) return false;
+  let i = 0;
+  let j = 0;
+  let edits = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) {
+      i++;
+      j++;
+      continue;
+    }
+    if (++edits > 1) return false;
+    if (a.length > b.length) i++;
+    else if (a.length < b.length) j++;
+    else {
+      i++;
+      j++;
+    }
+  }
+  return edits + (a.length - i) + (b.length - j) <= 1;
+}
+
+describe("the wordlist", () => {
+  it("is exactly 256 unique words", () => {
+    // Exactly 256 is what makes one word exactly 8 bits, so a byte maps to a
+    // word with no modulo bias to correct for and the entropy of a key stays
+    // trivial to reason about.
+    expect(WORDS).toHaveLength(256);
+    expect(new Set(WORDS).size).toBe(256);
+  });
+
+  it("is uppercase letters only, and nothing over eight of them", () => {
+    for (const w of WORDS) expect(w).toMatch(/^[A-Z]{2,8}$/);
+  });
+
+  it("has no word that is a prefix of another", () => {
+    // HEAD and HEADER would be indistinguishable in a half-remembered key.
+    const bad = WORDS.flatMap((a) =>
+      WORDS.filter((b) => b !== a && b.startsWith(a)).map((b) => `${a} -> ${b}`),
+    );
+    expect(bad).toEqual([]);
+  });
+
+  it("has no pair one edit apart", () => {
+    // TREE/TRIE, SPAN/SPAWN, LINKER/LINTER — each survives a sloppy copy as the
+    // wrong word, which silently sends the player to a different studio.
+    const bad: string[] = [];
+    for (let i = 0; i < WORDS.length; i++) {
+      for (let j = i + 1; j < WORDS.length; j++) {
+        if (oneEditApart(WORDS[i]!, WORDS[j]!)) bad.push(`${WORDS[i]}/${WORDS[j]}`);
+      }
+    }
+    expect(bad).toEqual([]);
   });
 });
 

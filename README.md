@@ -67,7 +67,7 @@ click the clock.
 ### Saves, studio keys and high scores
 
 There are no accounts. On first visit the game generates a **studio key** — four
-words, e.g. `RIVET-SABLE-NOVA-OPAL` — and saves to `localStorage`. You are never
+words, e.g. `COMMIT-KERNEL-SANDBOX-PIVOT` — and saves to `localStorage`. You are never
 asked for anything; the key only matters when you want the same studio on a
 different machine, where you type it into `STUDIO KEY` on the start screen.
 
