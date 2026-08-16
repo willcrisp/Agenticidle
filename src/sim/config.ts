@@ -64,6 +64,17 @@ export interface Config {
     penaltyPerExtraAgent: number;
   };
 
+  hallucination: {
+    /**
+     * The fail-rate readout on a project card, labelled LOW / MEDIUM / HIGH /
+     * VERY HIGH / EXTREME. Four ascending thresholds (0..1) carve the five
+     * bands — a fail rate below the first threshold reads LOW, at or above
+     * the last reads EXTREME. This is what makes crowding legible without a
+     * number: the player sees the label climb as they pile agents on.
+     */
+    tierThresholds: [number, number, number, number];
+  };
+
   decay: {
     /** Fraction of the ORIGINAL payout lost per second, once accepted. */
     perSecond: number;
@@ -147,6 +158,8 @@ export const DEFAULT_CONFIG: Config = {
   difficulty: { penaltyPerPip: 0.09, floor: 0.15 },
 
   crowding: { penaltyPerExtraAgent: 0.04 },
+
+  hallucination: { tierThresholds: [0.25, 0.4, 0.55, 0.7] },
 
   decay: { perSecond: 0.0022, floor: 0.12, sizeDamping: 0.35 },
 

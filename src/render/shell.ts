@@ -21,6 +21,7 @@ export interface PodRefs {
   payout: HTMLElement;
   segs: HTMLElement; // slice container
   reasoning: HTMLElement[]; // length 3, order [low, medium, high]
+  halluValue: HTMLElement; // the LOW/MEDIUM/HIGH/VERY HIGH/EXTREME text
   desks: HTMLElement; // agent stations reparent into here
   emptySlot: HTMLElement; // the dashed DROP HERE target inside .desks
   open: HTMLElement; // the "EMPTY / DRAG A PROJECT HERE" message div
@@ -157,7 +158,16 @@ function buildPod(index: number): PodRefs {
     dialRow.append(b);
   }
 
-  podH.append(r1, segs, dialRow);
+  // Its own row, not crammed onto REASONING's — three dial buttons plus a
+  // caption already use most of that row's width, and this is a readout,
+  // not a fourth button. The desks area below has slack for it (agent
+  // stations bottom-align and don't use their full height budget).
+  const halluRow = el("div", "hallu");
+  halluRow.append(text("span", "hallu-l", "HALLUCINATION"));
+  const halluValue = text("b", "hallu-v", "—");
+  halluRow.append(halluValue);
+
+  podH.append(r1, segs, dialRow, halluRow);
 
   // ---- desks ----
   const desks = el("div", "desks");
@@ -174,7 +184,7 @@ function buildPod(index: number): PodRefs {
 
   root.append(podH, desks, open);
 
-  return { root, name, pips, payout, segs, reasoning, desks, emptySlot, open };
+  return { root, name, pips, payout, segs, reasoning, halluValue, desks, emptySlot, open };
 }
 
 function buildHireRow(): { hireRow: HTMLElement; hireButtons: HTMLElement[] } {

@@ -253,6 +253,41 @@ export function effectiveOneShot(
   return Math.max(cfg.difficulty.floor, base - difficultyPenalty - crowdingPenalty);
 }
 
+export const HALLUCINATION_TIERS: readonly string[] = [
+  "LOW",
+  "MEDIUM",
+  "HIGH",
+  "VERY HIGH",
+  "EXTREME",
+];
+
+/** Which of the five bands a fail rate (0..1) falls into. */
+export function hallucinationTierIndex(cfg: Config, failRate: number): number {
+  const thresholds = cfg.hallucination.tierThresholds;
+  let i = 0;
+  while (i < thresholds.length && failRate >= thresholds[i]!) i++;
+  return i;
+}
+
+/**
+ * The fail rate a project's card shows as its hallucination tier: the mean,
+ * across every agent currently parked on the pod (running or blocked — the
+ * same set `effectiveOneShot`'s crowding penalty counts), of that agent's
+ * own chance of blocking on this project right now. `null` while the pod
+ * has no agents on it yet — there's nothing to average.
+ */
+export function podFailRate(state: RunState, podIndex: number): number | null {
+  const p = state.pods[podIndex];
+  if (!p) return null;
+  const onPod = state.agents.filter((a) => a.pod === podIndex);
+  if (onPod.length === 0) return null;
+  const totalFail = onPod.reduce(
+    (sum, a) => sum + (1 - effectiveOneShot(state.cfg, a.cls, p.difficulty, onPod.length)),
+    0
+  );
+  return totalFail / onPod.length;
+}
+
 /** Current token price multiplier — falls with deliveries, not clock time. */
 export function tokenPriceMult(state: RunState): number {
   const { credits } = state.cfg;

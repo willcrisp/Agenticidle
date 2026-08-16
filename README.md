@@ -41,7 +41,9 @@ That is the entire input. Concretely, to get a run going:
    working immediately. Pile on as many as you like — there's no seat limit —
    but every extra body on the same pod lowers everyone there's one-shot
    chance, on top of burning that many more credits. Swarming still works;
-   it just isn't free.
+   it just isn't free. Watch `HALLUCINATION` on the pod card climb from
+   `LOW` toward `EXTREME` as you crowd it — that's your early warning for how
+   much clicking a pod is about to demand.
 3. When an agent gets stuck it turns red and asks something idiotic. **Click
    it.** It retries from zero, so the time it already spent is gone.
 4. **Hire more agents** with `+STARTER` / `+SENIOR` / `+ELITE` next to

@@ -10,6 +10,29 @@ re-litigation, just implemented.
 
 ---
 
+## 2026-08-16 — The crowding penalty gets a readout: hallucination rate
+
+**Adds to** the crowding-penalty decision below — this is the UI surface
+for it, not a separate mechanic.
+
+**New decision `[DECIDED]`:** every occupied pod shows a HALLUCINATION
+reading — LOW / MEDIUM / HIGH / VERY HIGH / EXTREME — next to REASONING.
+It's the mean fail rate across every agent currently on that pod (the same
+population `effectiveOneShot`'s crowding penalty counts — running or
+blocked, blocked hasn't left), bucketed by `hallucination.tierThresholds`
+in `src/sim/config.ts`. Reads "—" until at least one agent is on the pod;
+averaging zero agents isn't a rate. `src/sim/state.ts` exports
+`podFailRate` and `hallucinationTierIndex` as the pure computation; nothing
+about it lives in `src/render/`.
+
+Does not conflict with handover §9's "No derived numbers" rule (no burn
+rate, runway, margin %, decay labels as raw figures): this is a band, not a
+percentage, the same shape as the difficulty pips and the reasoning dial
+already on the same card. The player is meant to feel "more agents here
+means more clicking soon," the same way they already feel decay and
+difficulty — this just gives that specific feeling a name and a place to
+watch it climb.
+
 ## 2026-08-16 — Swarming carries a one-shot penalty
 
 **Supersedes:**

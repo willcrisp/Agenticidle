@@ -178,6 +178,7 @@ canvas{display:block;width:100%;image-rendering:auto}
     sizeWeights: { small: 3, medium: 4, large: 2, huge: 1 },
     difficulty: { penaltyPerPip: 0.09, floor: 0.15 },
     crowding: { penaltyPerExtraAgent: 0.04 },
+    hallucination: { tierThresholds: [0.25, 0.4, 0.55, 0.7] },
     decay: { perSecond: 22e-4, floor: 0.12, sizeDamping: 0.35 },
     reasoning: {
       low: { speed: 0.6, burn: 0.45 },
@@ -986,6 +987,10 @@ const LEVERS = [
     ["difficulty.penaltyPerPip","Difficulty penalty / pip",0,0.22,0.005,pct,"Subtracted from one-shot per pip above 1. This is what makes quality matter separately from count."],
     ["difficulty.floor","One-shot floor",0.02,0.5,0.01,pct,null],
     ["crowding.penaltyPerExtraAgent","Crowding penalty / extra agent",0,0.2,0.005,pct,"Subtracted from one-shot per agent stacked on a pod beyond the first, on top of the difficulty penalty. The brake on free hiring — swarming still works, but every extra body makes everyone on the pod worse."],
+    ["hallucination.tierThresholds.0","Hallucination: LOW→MEDIUM at",0.05,0.5,0.01,pct,"Fail-rate band edges for the HALLUCINATION readout on the pod card. Below this, it reads LOW."],
+    ["hallucination.tierThresholds.1","Hallucination: MEDIUM→HIGH at",0.1,0.7,0.01,pct,null],
+    ["hallucination.tierThresholds.2","Hallucination: HIGH→VERY HIGH at",0.2,0.85,0.01,pct,null],
+    ["hallucination.tierThresholds.3","Hallucination: VERY HIGH→EXTREME at",0.3,0.95,0.01,pct,"Above this, it reads EXTREME. Keep all four ascending or the bands stop making sense."],
   ]],
   ["Decay", [
     ["decay.perSecond","Decay per second",0.0002,0.02,0.0002,v=>(v*100).toFixed(2)+"%","Fraction of the original offer lost every second once accepted."],

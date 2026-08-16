@@ -359,6 +359,49 @@ button {
   border-color: var(--fail);
 }
 
+/* The hallucination readout: LOW/MEDIUM/HIGH/VERY HIGH/EXTREME. Its own row
+   below REASONING — three dial buttons plus a caption already fill that
+   row's width, and this is a read-only figure, not a fourth button, so it
+   doesn't compete with them for space. Existing tokens only: the same
+   faint→dim→fg-2→fg ramp used everywhere else for "how much does this
+   matter", topping out at --fail once it's the worst band — same move the
+   difficulty pips already make at high difficulty. */
+.hallu {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin-top: 7px;
+}
+.hallu-l {
+  font-family: var(--px);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: var(--faint);
+  white-space: nowrap;
+}
+.hallu-v {
+  font-family: var(--px);
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--faint);
+  white-space: nowrap;
+}
+.hallu-v.tier-0 {
+  color: var(--faint);
+}
+.hallu-v.tier-1 {
+  color: var(--dim);
+}
+.hallu-v.tier-2 {
+  color: var(--fg-2);
+}
+.hallu-v.tier-3 {
+  color: var(--fg);
+}
+.hallu-v.tier-4 {
+  color: var(--fail);
+}
+
 /* agents — no seats, they just pile in */
 .desks {
   flex: 1;
