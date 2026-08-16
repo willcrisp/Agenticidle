@@ -386,6 +386,54 @@ button {
   color: var(--fail);
 }
 
+/* TIME TO NEXT DEADLINE — the stepped-payout decay readout, riding the right
+   end of the hallucination row. It is NOT red (red = click it) and NOT amber
+   (amber = drag it): it's a decay figure, so it stays grey. Urgency near the
+   cliff is carried by MOTION and CONTRAST only — a bob plus a brightening from
+   --dim toward --fg — never by colour. Existing grey tokens only. */
+.deadline {
+  margin-left: auto;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+}
+.deadline-l {
+  font-family: var(--px);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: var(--faint);
+}
+.deadline-v {
+  font-family: var(--px);
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--dim);
+  min-width: 30px;
+  text-align: right;
+}
+/* Non-finite (card not yet on a pod): the readout has nothing to say. */
+.deadline.is-empty .deadline-l,
+.deadline.is-empty .deadline-v {
+  color: var(--faint);
+}
+/* Under deadlineWarnSeconds: brighter (contrast) and bobbing (motion). No red. */
+.deadline.is-urgent .deadline-v {
+  color: var(--fg);
+}
+.deadline.is-urgent {
+  animation: deadline-bob 0.85s ease-in-out infinite;
+}
+@keyframes deadline-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
 /* agents — no seats, they just pile in */
 .desks {
   flex: 1;
@@ -414,6 +462,40 @@ button {
   width: 64px;
   height: 64px;
   margin: 0 auto;
+}
+
+/* Intelligence rank: stacked chevrons in the sprite's top-right corner, army
+   insignia style — more chevrons = smarter. Grey (--dim) because it's
+   information, not a click/drag/money/token. Absolute overlay: zero layout
+   height, and it never touches the pre-rendered sprite. Each `.chev` is the
+   classic CSS chevron — a box showing only its top+right borders, rotated so
+   the corner points up. */
+.chevrons {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  z-index: 3;
+  pointer-events: none;
+}
+.chev {
+  width: 7px;
+  height: 7px;
+  border-top: 2px solid var(--dim);
+  border-right: 2px solid var(--dim);
+  transform: rotate(-45deg);
+}
+/* The class's player-facing name under the agent's own name. Grey = info. */
+.cls-label {
+  display: block;
+  font-family: var(--px);
+  font-size: 7.5px;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  color: var(--dim);
+  margin-top: 3px;
 }
 .desks.swarm .station {
   width: 62px;
@@ -496,6 +578,29 @@ button {
 .desks.packed .station.is-blocked .sprite {
   outline: 2px solid var(--fail);
   outline-offset: 1px;
+}
+
+/* Rank adornments track the crowd: smaller at swarm, gone at dense/packed —
+   the same call the plate/bubble make, so a full pod stays legible. The sprite
+   colour still carries the class once the badges drop out. */
+.desks.swarm .chevrons {
+  top: 2px;
+  right: 5px;
+  gap: 2px;
+}
+.desks.swarm .chev {
+  width: 5px;
+  height: 5px;
+}
+.desks.swarm .cls-label {
+  font-size: 6.5px;
+  margin-top: 2px;
+}
+.desks.dense .chevrons,
+.desks.dense .cls-label,
+.desks.packed .chevrons,
+.desks.packed .cls-label {
+  display: none;
 }
 
 .bub {
@@ -703,16 +808,22 @@ button {
 .tray-h.b {
   color: var(--ok);
 }
+/* The board now offers up to `cfg.boardSlots` (6) cards in one non-wrapping
+   row. tray-half's content box is 1280 − 32px padding = 1248px; six cards
+   capped at 190px (1140px) plus five 10px gaps (50px) = 1190px, leaving slack
+   so the row never overflows or wraps. Fewer cards just grow to the 190px cap
+   and sit left. */
 .tray-row {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   align-items: flex-start;
 }
 
 /* project card: payout bar over cost bar — the gap is the profit */
 .pcard {
   flex: 1;
-  max-width: 196px;
+  min-width: 0;
+  max-width: 190px;
   border: 1px solid var(--line);
   background: #161a1d;
   padding: 8px 11px 8px;
@@ -795,6 +906,11 @@ button {
 
 @media (prefers-reduced-motion: reduce) {
   .bub {
+    animation: none;
+  }
+  /* Cut the decorative bob but keep the informational layer: the countdown
+     number and its brighter urgent contrast still update every frame. */
+  .deadline.is-urgent {
     animation: none;
   }
 }

@@ -23,6 +23,8 @@ export interface PodRefs {
   segs: HTMLElement; // slice container
   reasoning: HTMLElement[]; // length 3, order [low, medium, high]
   halluValue: HTMLElement; // the LOW/MEDIUM/HIGH/VERY HIGH/EXTREME text
+  deadline: HTMLElement; // "TIME TO NEXT DEADLINE" wrapper — carries urgency classes
+  deadlineValue: HTMLElement; // the m:ss / Ns countdown text
   desks: HTMLElement; // agent stations reparent into here
   addSelect: HTMLSelectElement; // which class ADD hires
   addBtn: HTMLElement;
@@ -162,6 +164,17 @@ function buildPod(index: number): PodRefs {
   const halluValue = text("b", "hallu-v", "—");
   halluRow.append(halluValue);
 
+  // The stepped-payout decay readout: time until the accepted project's next
+  // renegotiation cliff. Rides the right end of the hallucination row rather
+  // than taking its own line — the pod header is fixed-height inside 720px and
+  // a fresh row would come out of the desks below. It's a decay figure, not a
+  // click/drag/money/token, so it stays grey (see .deadline in style.css);
+  // urgency near the cliff is motion/contrast only, never red.
+  const deadline = el("div", "deadline");
+  const deadlineValue = text("b", "deadline-v", "—");
+  deadline.append(text("span", "deadline-l", "TIME TO NEXT DEADLINE"), deadlineValue);
+  halluRow.append(deadline);
+
   podH.append(r1, segs, dialRow, halluRow);
 
   // ---- desks ----
@@ -204,6 +217,8 @@ function buildPod(index: number): PodRefs {
     segs,
     reasoning,
     halluValue,
+    deadline,
+    deadlineValue,
     desks,
     addSelect,
     addBtn,

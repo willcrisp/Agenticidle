@@ -18,6 +18,10 @@ export interface AgentClassConfig {
   oneShot: number;
   /** Multiplier on token burn while running. 1 = baseline. */
   burnMult: number;
+  /** Player-facing name shown on the sprite/card. Render reads this; the ClassName key stays stable. */
+  label: string;
+  /** Intelligence rank, army-badge chevrons — more chevrons = smarter. Render draws this many pips. */
+  chevrons: number;
 }
 
 export interface SizeConfig {
@@ -117,14 +121,18 @@ export interface Config {
     penaltyPerDifficultyPip: number;
     /** Payout never decays below this fraction of original, no matter how many misses. */
     floor: number;
+    /** seconds-to-deadline below which the card's countdown shows urgency (render-only; the sim never reads it). */
+    deadlineWarnSeconds: number;
   };
 
   /**
-   * The reasoning dial. Thinking harder gets through the work faster and costs
-   * proportionally more tokens; `speed` multiplies work-seconds accrued,
-   * `burn` multiplies token spend.
+   * The reasoning dial. Thinking harder no longer changes how fast work
+   * accrues — every agent of a class takes the same time on a run regardless
+   * of reasoning. Instead it trades tokens for accuracy: `oneShotBonus` is
+   * ADDED to the agent's effective one-shot chance (positive = fewer
+   * hallucinations/errors, negative = more), and `burn` multiplies token spend.
    */
-  reasoning: Record<Reasoning, { speed: number; burn: number }>;
+  reasoning: Record<Reasoning, { oneShotBonus: number; burn: number }>;
 
   tokens: {
     /** Tokens per second per running agent at MEDIUM, burnMult 1. */
@@ -141,16 +149,6 @@ export interface Config {
     /** Lot price falls as projects are delivered. */
     priceDropPerDelivery: number;
     priceFloorMult: number;
-  };
-
-  debt: {
-    /** Interest per second on negative cash, as a fraction. */
-    interestPerSecond: number;
-    /** Cash below this forces every pod down to LOW reasoning. */
-    lowLockAt: number;
-    /** Cash below this starts repossessing agents. */
-    repoAt: number;
-    repoIntervalSeconds: number;
   };
 
   escalation: {
@@ -186,13 +184,19 @@ export const DEFAULT_CONFIG: Config = {
   maxRoster: 24,
   maxAgentsPerPod: 15,
   podCount: 4,
-  boardSlots: 3,
+  boardSlots: 6,
   boardRefillSeconds: 4,
 
   classes: {
-    starter: { runWork: 6, oneShot: 0.62, burnMult: 1.0 },
-    senior: { runWork: 9, oneShot: 0.76, burnMult: 1.3 },
-    elite: { runWork: 15, oneShot: 0.88, burnMult: 1.7 },
+    // label/chevrons are player-facing dressing (nobody's signed off the
+    // names either); the "starter"/"senior"/"elite" keys are the stable API.
+    // runWork is deliberately short (agents cycle ~2x faster than the first
+    // pass) and oneShot deliberately lower: fast, failure-prone runs are what
+    // push peak retry demand past the player's hands, so "you are the
+    // bottleneck" actually binds. Reasoning effort buys the accuracy back.
+    starter: { runWork: 2, oneShot: 0.52, burnMult: 1.0, label: "Haikuu", chevrons: 1 },
+    senior: { runWork: 3, oneShot: 0.66, burnMult: 1.3, label: "Sonneteer", chevrons: 2 },
+    elite: { runWork: 5, oneShot: 0.78, burnMult: 1.7, label: "Opulent", chevrons: 3 },
   },
 
   sizes: {
@@ -219,28 +223,26 @@ export const DEFAULT_CONFIG: Config = {
     basePenaltyFraction: 0.12,
     penaltyPerDifficultyPip: 0.03,
     floor: 0.12,
+    deadlineWarnSeconds: 8,
   },
 
+  // Reasoning trades tokens for accuracy now, not speed. oneShotBonus is added
+  // to the run's one-shot chance; burn multiplies token spend. Starting guesses,
+  // nobody's signed off: LOW is cheap but hallucinates more, HIGH is dear but
+  // steadier.
   reasoning: {
-    low: { speed: 0.6, burn: 0.45 },
-    medium: { speed: 1.0, burn: 1.0 },
-    high: { speed: 1.7, burn: 2.4 },
+    low: { oneShotBonus: -0.12, burn: 0.5 },
+    medium: { oneShotBonus: 0, burn: 1.0 },
+    high: { oneShotBonus: 0.1, burn: 2.4 },
   },
 
   tokens: {
     burnPerAgentSecond: 300,
     blockedAgentsBurn: false,
-    lotSize: 1_000_000,
-    lotPrice: 9000,
+    lotSize: 100_000,
+    lotPrice: 500,
     priceDropPerDelivery: 0.03,
     priceFloorMult: 0.45,
-  },
-
-  debt: {
-    interestPerSecond: 0.0004,
-    lowLockAt: -3000,
-    repoAt: -12000,
-    repoIntervalSeconds: 20,
   },
 
   escalation: {

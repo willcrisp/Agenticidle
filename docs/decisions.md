@@ -10,6 +10,99 @@ re-litigation, just implemented.
 
 ---
 
+## 2026-08-16 — Agents run fast and fail often, so the bottleneck finally binds
+
+**Adds to** the reasoning/debt batch below (same session, same playtest goal).
+
+The smoke harness has long carried a WARN — "the attention cap actually binds" —
+because peak retry demand sat around 0.85–1.7 clicks/s against a 2.5/s player, so
+the floor never outran your hands and "you are the bottleneck" wasn't true. Now
+that reasoning no longer speeds agents up, run cadence is set purely by `runWork`,
+which made this tunable directly.
+
+**New decision `[DECIDED]`:** `classes.*.runWork` is cut to `2 / 3 / 5`
+(starter/senior/elite) — agents cycle ~3× faster than the previous pass — and
+`oneShot` is dropped ~0.10 to `0.52 / 0.66 / 0.78`. Fast, failure-prone runs
+generate retries faster than a 2.5/s player can serve them: peak demand on the
+`balanced` line now averages **2.39 clicks/s**, and the smoke invariant flips
+from WARN to PASS. Reasoning effort is what buys the lost accuracy back, so the
+error-rate dial (the other half of this session's work) now has real weight —
+you run agents hot and cheap and eat the clicks, or think harder and pay tokens.
+
+Guardrails held: median score stays healthy (~64k), no single strategy runs away
+(best is 1.28× the runner-up, well under the 1.8× line), and investing still
+beats doing nothing. Re-tune in `tools/agent-idol-balance-harness.html`; nothing
+here is signed off, per `config.ts`'s preamble.
+
+## 2026-08-16 — Reasoning buys accuracy not speed; debt is gone; a deadline countdown; class labels; number moves
+
+A batch of directly-requested changes. Grouped here because several touch the
+same files and the same playtest goal — make the board busier and the reasoning
+dial an actual choice — but each stands on its own.
+
+**New decision `[DECIDED]` — REASONING NOW LOWERS ERROR RATE, NOT RUN TIME.**
+This reverses the reasoning dial's whole semantics. It *was* speed + burn:
+`cfg.reasoning[r]` held `{ speed, burn }`, `speed` multiplied work-seconds
+accrued, so HIGH finished runs faster and LOW slower. It *is now* accuracy +
+burn: the shape is `{ oneShotBonus, burn }`, and `oneShotBonus` is added to an
+agent's effective one-shot chance — positive = fewer hallucinations/errors,
+negative = more. **Every agent of a class now takes the same time on a run
+regardless of reasoning**; work accrues at a flat `a.progress += dtSeconds` in
+`tick.ts`, no speed factor. The burn multiplier is untouched — thinking harder
+still costs proportionally more tokens. `effectiveOneShot` gained a
+`reasoning: Reasoning` parameter that applies the bonus, clamped to a 0.98
+ceiling (no dial buys a guaranteed run) and still floored at
+`cfg.difficulty.floor`. Starting values, nobody signed off: LOW
+`{ oneShotBonus: -0.12, burn: 0.5 }`, MEDIUM `{ 0, 1.0 }`, HIGH
+`{ 0.10, 2.4 }`. Why the reversal: a speed dial made HIGH strictly better at
+everything except cost, so the "choice" was just how much token budget you had;
+tying it to error rate instead makes it a real trade against the hallucination
+readout the pod card already shows — LOW is cheap but breaks more, HIGH is dear
+but steadier.
+
+**New decision `[DECIDED]` — ALL DEBT MECHANICS REMOVED.** The entire `debt`
+block is gone from config (`interestPerSecond`, `lowLockAt`, `repoAt`,
+`repoIntervalSeconds`), and with it the whole ladder in `tick.ts`: no interest
+accrual on negative cash, no forced-LOW reasoning lock, no repossession
+(`repossess()` deleted), and `lowLocked` / `lastRepoAt` are off `RunState`.
+Telemetry `debtSeconds` and `agentsRepossessed` are removed, along with the
+dashboard's REPOSSESSED tile and its "DEBT NEVER BITES" warning. **Negative cash
+is now allowed but harmless** — it only limits what you can afford to buy; it
+never runs away on its own or takes anything from you. This aligns the code with
+the handover reversal CLAUDE.md already flags (the pitch's "debt is how you
+lose" third beat is dead): there is no game over but the clock, and cash is a
+spending limit, not a punishment engine. The `debtRate` harness stat survives as
+"fraction of runs that ended in the red" — a descriptive readout, not a mechanic.
+
+**New decision `[DECIDED]` — DEADLINE COUNTDOWN, an explicit exception to §9.**
+`src/sim/state.ts` now exports a pure `secondsToNextDeadline(p, now)` returning
+`p.nextPenaltyAt - now` (Infinity while the card is unaccepted — the render side
+treats non-finite as "no timer yet"), and config gains
+`decay.deadlineWarnSeconds` (starting 8), a render-only urgency threshold the
+sim never reads. This puts a real derived number — seconds to the next renegotiation
+cliff — on the card, which handover §9 ("no burn rate, runway, margin %, decay
+labels") otherwise forbids. It's a **user-requested, explicitly permitted
+exception**, and a narrow one: it's consistent with the stepped-decay decision
+below, which made the deadline a concrete cliff to race rather than an ambient
+slope. A countdown to a cliff the player can see coming is the one number that
+earns its place; everything else on §9's list stays banned. Render owns the
+display; the sim only exposes the accessor and the threshold.
+
+**New decision `[DECIDED]` — class display names + chevrons (additive).**
+`AgentClassConfig` gains `label: string` and `chevrons: number` (intelligence
+rank, army-badge style — more chevrons = smarter). starter → "Haikuu", 1;
+senior → "Sonneteer", 2; elite → "Opulent", 3. The `ClassName` keys
+("starter"/"senior"/"elite") are unchanged and stay the stable API — these are
+player-facing dressing only, read by render as `cfg.classes[key].label` /
+`.chevrons`. Nobody's signed off the names either.
+
+**Numbers moved** (still nobody's signed off, per `config.ts`'s preamble):
+`boardSlots` 3 → 6 (a busier board — more to accept, more to juggle); token
+`lotSize` 1,000,000 → 100,000 and `lotPrice` 9,000 → 500 (tokens were too
+expensive per the request; `startingTokens`, `priceDropPerDelivery` and
+`priceFloorMult` held). Re-tune from here in
+`tools/agent-idol-balance-harness.html` same as any other lever.
+
 ## 2026-08-16 — Credits are renamed tokens, and the shop is now one flat lot
 
 **Supersedes:** every "credits" reference in the handover and in CLAUDE.md's

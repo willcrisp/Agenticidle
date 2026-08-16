@@ -163,12 +163,18 @@ canvas{display:block;width:100%;image-rendering:auto}
     maxRoster: 24,
     maxAgentsPerPod: 15,
     podCount: 4,
-    boardSlots: 3,
+    boardSlots: 6,
     boardRefillSeconds: 4,
     classes: {
-      starter: { runWork: 6, oneShot: 0.62, burnMult: 1 },
-      senior: { runWork: 9, oneShot: 0.76, burnMult: 1.3 },
-      elite: { runWork: 15, oneShot: 0.88, burnMult: 1.7 }
+      // label/chevrons are player-facing dressing (nobody's signed off the
+      // names either); the "starter"/"senior"/"elite" keys are the stable API.
+      // runWork is deliberately short (agents cycle ~2x faster than the first
+      // pass) and oneShot deliberately lower: fast, failure-prone runs are what
+      // push peak retry demand past the player's hands, so "you are the
+      // bottleneck" actually binds. Reasoning effort buys the accuracy back.
+      starter: { runWork: 2, oneShot: 0.52, burnMult: 1, label: "Haikuu", chevrons: 1 },
+      senior: { runWork: 3, oneShot: 0.66, burnMult: 1.3, label: "Sonneteer", chevrons: 2 },
+      elite: { runWork: 5, oneShot: 0.78, burnMult: 1.7, label: "Opulent", chevrons: 3 }
     },
     sizes: {
       small: { work: 50, payoutPerWork: 11 },
@@ -189,26 +195,25 @@ canvas{display:block;width:100%;image-rendering:auto}
       intervalPerWork: 0.2,
       basePenaltyFraction: 0.12,
       penaltyPerDifficultyPip: 0.03,
-      floor: 0.12
+      floor: 0.12,
+      deadlineWarnSeconds: 8
     },
+    // Reasoning trades tokens for accuracy now, not speed. oneShotBonus is added
+    // to the run's one-shot chance; burn multiplies token spend. Starting guesses,
+    // nobody's signed off: LOW is cheap but hallucinates more, HIGH is dear but
+    // steadier.
     reasoning: {
-      low: { speed: 0.6, burn: 0.45 },
-      medium: { speed: 1, burn: 1 },
-      high: { speed: 1.7, burn: 2.4 }
+      low: { oneShotBonus: -0.12, burn: 0.5 },
+      medium: { oneShotBonus: 0, burn: 1 },
+      high: { oneShotBonus: 0.1, burn: 2.4 }
     },
     tokens: {
       burnPerAgentSecond: 300,
       blockedAgentsBurn: false,
-      lotSize: 1e6,
-      lotPrice: 9e3,
+      lotSize: 1e5,
+      lotPrice: 500,
       priceDropPerDelivery: 0.03,
       priceFloorMult: 0.45
-    },
-    debt: {
-      interestPerSecond: 4e-4,
-      lowLockAt: -3e3,
-      repoAt: -12e3,
-      repoIntervalSeconds: 20
     },
     escalation: {
       shape: "linear",
@@ -338,8 +343,6 @@ canvas{display:block;width:100%;image-rendering:auto}
       board: [],
       boardRefillAt: 0,
       blockedQueue: [],
-      lowLocked: false,
-      lastRepoAt: -999,
       score: 0,
       telemetry: emptyTelemetry(cfg)
     };
@@ -423,8 +426,6 @@ canvas{display:block;width:100%;image-rendering:auto}
       cashCurve: new Array(buckets).fill(0),
       tokenCurve: new Array(buckets).fill(0),
       stalledSeconds: 0,
-      debtSeconds: 0,
-      agentsRepossessed: 0,
       runsAttempted: 0,
       runsFailed: 0,
       overflowWasted: 0,
@@ -434,11 +435,15 @@ canvas{display:block;width:100%;image-rendering:auto}
       moneySpentOnAgents: 0
     };
   }
-  function effectiveOneShot(cfg, cls, difficulty, podAgentCount = 1) {
+  function effectiveOneShot(cfg, cls, difficulty, podAgentCount = 1, reasoning = "medium") {
     const base = cfg.classes[cls].oneShot;
     const difficultyPenalty = cfg.difficulty.penaltyPerPip * (difficulty - 1);
     const crowdingPenalty = cfg.crowding.penaltyPerExtraAgent * Math.max(0, podAgentCount - 1);
-    return Math.max(cfg.difficulty.floor, base - difficultyPenalty - crowdingPenalty);
+    const reasoningBonus = cfg.reasoning[reasoning].oneShotBonus;
+    return Math.min(
+      0.98,
+      Math.max(cfg.difficulty.floor, base - difficultyPenalty - crowdingPenalty + reasoningBonus)
+    );
   }
   function tokenPriceMult(state) {
     const { tokens } = state.cfg;
@@ -482,7 +487,7 @@ canvas{display:block;width:100%;image-rendering:auto}
   function setReasoning(s, pod, reasoning) {
     const p = s.pods[pod];
     if (!p) return false;
-    p.reasoning = s.lowLocked ? "low" : reasoning;
+    p.reasoning = reasoning;
     return true;
   }
   function buyTokens(s) {
@@ -515,19 +520,6 @@ canvas{display:block;width:100%;image-rendering:auto}
     if (s.finished) return;
     const cfg = s.cfg;
     s.t += dtSeconds;
-    const wasLocked = s.lowLocked;
-    s.lowLocked = s.cash < cfg.debt.lowLockAt;
-    if (s.lowLocked && !wasLocked) {
-      for (const p of s.pods) if (p) p.reasoning = "low";
-    }
-    if (s.cash < 0) {
-      s.cash += s.cash * cfg.debt.interestPerSecond * dtSeconds;
-      s.telemetry.debtSeconds += dtSeconds;
-    }
-    if (s.cash < cfg.debt.repoAt && s.t - s.lastRepoAt >= cfg.debt.repoIntervalSeconds) {
-      repossess(s);
-      s.lastRepoAt = s.t;
-    }
     let burn = 0;
     for (const a of s.agents) {
       if (a.pod === null) continue;
@@ -572,11 +564,17 @@ canvas{display:block;width:100%;image-rendering:auto}
         continue;
       }
       if (stalled) continue;
-      a.progress += dtSeconds * cfg.reasoning[p.reasoning].speed;
+      a.progress += dtSeconds;
       const runWork = cfg.classes[a.cls].runWork;
       if (a.progress < runWork) continue;
       a.progress = 0;
-      const chance = effectiveOneShot(cfg, a.cls, p.difficulty, podOccupancy[a.pod] ?? 1);
+      const chance = effectiveOneShot(
+        cfg,
+        a.cls,
+        p.difficulty,
+        podOccupancy[a.pod] ?? 1,
+        p.reasoning
+      );
       if (s.rng.chance(chance)) {
         let delivered = runWork;
         const remaining = p.work - p.workDone;
@@ -615,20 +613,6 @@ canvas{display:block;width:100%;image-rendering:auto}
     s.deliveries++;
     s.pods[pod] = null;
     clearPod(s, pod);
-  }
-  function repossess(s) {
-    const order = ["starter", "senior", "elite"];
-    for (const cls of order) {
-      const idx = s.agents.findIndex((a) => a.cls === cls);
-      if (idx >= 0) {
-        const a = s.agents[idx];
-        const qi = s.blockedQueue.indexOf(a.id);
-        if (qi >= 0) s.blockedQueue.splice(qi, 1);
-        s.agents.splice(idx, 1);
-        s.telemetry.agentsRepossessed++;
-        return;
-      }
-    }
   }
   function finalise(s) {
     if (s.finished) return;
@@ -881,7 +865,6 @@ canvas{display:block;width:100%;image-rendering:auto}
       fails: 0,
       debt: 0,
       stalled: 0,
-      repo: 0,
       backlog: 0,
       blockedSeconds: 0,
       blockedEvents: 0,
@@ -904,7 +887,6 @@ canvas{display:block;width:100%;image-rendering:auto}
       agg.fails += t.runsFailed;
       if (s.cash < 0) agg.debt++;
       agg.stalled += t.stalledSeconds;
-      agg.repo += t.agentsRepossessed;
       agg.blockedSeconds += t.agentBlockedSeconds;
       agg.blockedEvents += t.runsFailed;
       agg.roster += s.agents.length;
@@ -942,7 +924,6 @@ canvas{display:block;width:100%;image-rendering:auto}
       failRate: +(agg.fails / Math.max(1, agg.attempts)).toFixed(3),
       debtRate: +(agg.debt / runs).toFixed(2),
       stalledSeconds: +(agg.stalled / runs).toFixed(1),
-      repossessions: +(agg.repo / runs).toFixed(2),
       peakClicksPerSecond: +peakCps.toFixed(2),
       meanBacklog: +(agg.backlog / (runs * buckets)).toFixed(2),
       clickServeRate: +(agg.served / Math.max(1, agg.demanded)).toFixed(3),
@@ -1016,23 +997,18 @@ const LEVERS = [
     ["decay.basePenaltyFraction","Penalty per miss (difficulty 1)",0,0.5,0.01,pct,"Fraction of the ORIGINAL offer lost each time the deadline window is missed."],
     ["decay.penaltyPerDifficultyPip","Penalty / difficulty pip",0,0.15,0.005,pct,"Added to the penalty per pip above 1 — harder jobs punish a miss harder."],
     ["decay.floor","Decay floor",0,0.6,0.01,pct,"A contract never falls below this share of its offer, no matter how many misses."],
+    ["decay.deadlineWarnSeconds","Deadline warn threshold",2,30,1,v=>v+"s","Render-only: seconds-to-deadline below which the card's countdown shows urgency. The sim never reads it — moving it can't change a score."],
   ]],
   ["Tokens", [
-    ["tokens.burnPerAgentSecond","Burn / agent / sec",20,1200,10,v=>v.toFixed(0),"At MEDIUM reasoning, before class and reasoning multipliers."],
-    ["reasoning.low.speed","LOW speed ×",0.2,1,0.05,v=>v.toFixed(2)+"×",null],
+    ["tokens.burnPerAgentSecond","Burn / agent / sec",20,1200,10,v=>v.toFixed(0),"At MEDIUM reasoning, before class and reasoning burn multipliers."],
+    ["reasoning.low.oneShotBonus","LOW one-shot bonus",-0.3,0.1,0.01,v=>(v>=0?"+":"")+(v*100).toFixed(0)+"%","Added to one-shot at LOW reasoning. Negative = more hallucinations, the price of cheap thinking. Reasoning buys accuracy now, not speed."],
     ["reasoning.low.burn","LOW burn ×",0.1,1,0.05,v=>v.toFixed(2)+"×",null],
-    ["reasoning.high.speed","HIGH speed ×",1,4,0.1,v=>v.toFixed(1)+"×",null],
-    ["reasoning.high.burn","HIGH burn ×",1,6,0.1,v=>v.toFixed(1)+"×","The central tension: is the decay you avoid worth the tokens you burn?"],
+    ["reasoning.high.oneShotBonus","HIGH one-shot bonus",-0.1,0.3,0.01,v=>(v>=0?"+":"")+(v*100).toFixed(0)+"%","Added to one-shot at HIGH reasoning. Positive = fewer errors, the payoff for the extra burn."],
+    ["reasoning.high.burn","HIGH burn ×",1,6,0.1,v=>v.toFixed(1)+"×","The central tension: is the accuracy you buy worth the tokens you burn?"],
     ["tokens.lotSize","Lot size",100000,3000000,100000,v=>v.toLocaleString(),"How many tokens one BUY MORE adds. Flat — no picker, no tiers."],
-    ["tokens.lotPrice","Lot price",1000,30000,500,money,"Cash cost of one lot, before the delivery discount below."],
+    ["tokens.lotPrice","Lot price",100,30000,100,money,"Cash cost of one lot, before the delivery discount below."],
     ["tokens.priceDropPerDelivery","Price drop / delivery",0,0.1,0.005,v=>(v*100).toFixed(1)+"%","Lot price falls as you deliver. The engine-building payoff."],
     ["tokens.priceFloorMult","Price floor",0.1,1,0.05,v=>v.toFixed(2)+"×",null],
-  ]],
-  ["Debt", [
-    ["debt.interestPerSecond","Interest / sec",0,0.003,0.0001,v=>(v*100).toFixed(3)+"%",null],
-    ["debt.lowLockAt","LOW lock at",-40000,0,500,money,"Below this, every pod is forced down to LOW reasoning — the punishment that makes decay eat you faster."],
-    ["debt.repoAt","Repossess at",-100000,0,1000,money,null],
-    ["debt.repoIntervalSeconds","Repossess every",5,120,5,v=>v+"s",null],
   ]],
   ["Escalation", [
     ["escalation.payoutEndMult","Payout by the end",1,8,0.1,v=>v.toFixed(1)+"×","The board gets richer over the run."],
@@ -1252,8 +1228,6 @@ function diagnose(rows, cfg){
     out.push(["warn","LOW VARIANCE","P10 to P90 spans only "+pct(spread)+" of the median. Runs feel identical, which flattens the reason to replay."]);
   if(b.stalledSeconds>60)
     out.push(["warn","TOKEN STALLS","Runs spend "+b.stalledSeconds.toFixed(0)+"s frozen at zero tokens. Sickening by design, but check it isn't just tedium."]);
-  if(rows.every(r=>r.debtRate<0.05))
-    out.push(["warn","DEBT NEVER BITES","Almost no run ends in the red, so the whole debt ladder — interest, LOW-reasoning lock, repossession — is dead content."]);
   return out;
 }
 
@@ -1332,7 +1306,6 @@ function render(rows, samples, runs){
       <div class="tile"><b>DELIVERIES</b><i>${b.deliveries.toFixed(1)}</i><s>projects banked per run</s></div>
       <div class="tile"><b>FAILED RUNS</b><i>${pct(b.failRate)}</i><s>resolve red</s></div>
       <div class="tile ${b.stalledSeconds>60?"warn":""}"><b>STALLED</b><i>${b.stalledSeconds.toFixed(0)}s</i><s>frozen at zero tokens</s></div>
-      <div class="tile ${b.repossessions>0?"warn":""}"><b>REPOSSESSED</b><i>${b.repossessions.toFixed(1)}</i><s>agents lost to debt</s></div>
       <div class="tile"><b>SPREAD</b><i>${b.spread.toFixed(2)}×</i><s>P10 to P90 over median</s></div>
     </div>
   </div>`;
