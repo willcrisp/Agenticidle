@@ -320,11 +320,22 @@ button {
   background: #191d21;
 }
 
-/* the reasoning dial — three buttons, no numbers */
+/* the reasoning dial — a grey caption and three buttons, no numbers */
 .reasoning {
   display: flex;
+  align-items: center;
   gap: 3px;
   margin-top: 8px;
+}
+.reasoning-l {
+  font-family: var(--px);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  /* --dim, not --faint: this is the one caption that has a job to do, and it
+     matches the off-state buttons it labels. */
+  color: var(--dim);
+  margin-right: 7px;
+  white-space: nowrap;
 }
 .reasoning b {
   font-family: var(--px);

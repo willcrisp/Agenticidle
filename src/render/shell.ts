@@ -121,7 +121,11 @@ function buildPod(index: number): PodRefs {
   const rest = el("span", "rest");
   segs.append(rest);
 
+  // The caption sits inline with the buttons rather than on its own line: the
+  // pod header is fixed-height inside the 720px stage, so a second row would
+  // come out of the desks below it.
   const dialRow = el("div", "reasoning");
+  dialRow.append(text("span", "reasoning-l", "REASONING"));
   const reasoning: HTMLElement[] = [];
   for (let i = 0; i < REASONING_KEYS.length; i++) {
     const key = REASONING_KEYS[i];
