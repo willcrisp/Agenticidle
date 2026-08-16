@@ -275,6 +275,33 @@ describe("the board", () => {
     expect(perWork(late)).toBeGreaterThan(perWork(early));
     expect(diff(late)).toBeGreaterThan(diff(early));
   });
+
+  it("also escalates from deliveries, independent of the clock", () => {
+    const s = createRun(DEFAULT_CONFIG, "escalate-deliveries");
+    const early = [...Array(40)].map(() => {
+      const p = s.board[0];
+      s.board.splice(0, 1);
+      s.board.push(spawnProject(s));
+      return p;
+    });
+    // Clock barely moved, but this player has banked a lot of work.
+    s.deliveries = DEFAULT_CONFIG.escalation.deliveriesToMax;
+    const late = [...Array(40)].map(() => spawnProject(s));
+
+    const perWork = (arr: any[]) =>
+      arr.reduce((a, p) => a + p.originalPayout / p.work, 0) / arr.length;
+    const diff = (arr: any[]) => arr.reduce((a, p) => a + p.difficulty, 0) / arr.length;
+
+    expect(perWork(late)).toBeGreaterThan(perWork(early));
+    expect(diff(late)).toBeGreaterThan(diff(early));
+  });
+
+  it("starts cheap and easy: t=0, no deliveries yields the lowest pips", () => {
+    const s = createRun(DEFAULT_CONFIG, "start-easy");
+    const spawned = [...Array(60)].map(() => spawnProject(s));
+    const avgDiff = spawned.reduce((a, p) => a + p.difficulty, 0) / spawned.length;
+    expect(avgDiff).toBeLessThan(2);
+  });
 });
 
 describe("the attention cap is a real constraint", () => {

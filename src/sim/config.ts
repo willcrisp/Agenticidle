@@ -97,11 +97,18 @@ export interface Config {
     shape: "linear" | "stepped" | "accelerating";
     /** Payout multiplier reached at the end of the run. */
     payoutEndMult: number;
-    /** Difficulty pips at t=0 and at t=end (fractional, rounded on spawn). */
+    /** Difficulty pips at the very start and at full escalation (fractional, rounded on spawn). */
     difficultyStart: number;
     difficultyEnd: number;
     /** For 'stepped': how many steps across the run. */
     steps: number;
+    /**
+     * Deliveries needed to reach full escalation on your own, independent of
+     * the clock. Whichever driver — elapsed time or deliveries banked — is
+     * further along wins, so a prolific player gets outrun by their own
+     * throughput even with half the clock left.
+     */
+    deliveriesToMax: number;
   };
 
   /** A failed run contributes 0% but has already burned its credits. */
@@ -168,9 +175,10 @@ export const DEFAULT_CONFIG: Config = {
   escalation: {
     shape: "linear",
     payoutEndMult: 3.2,
-    difficultyStart: 1.4,
+    difficultyStart: 1.0,
     difficultyEnd: 4.6,
     steps: 5,
+    deliveriesToMax: 40,
   },
 
   failedRunsCostCredits: true,

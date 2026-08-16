@@ -161,10 +161,19 @@ export function makeAgent(cls: ClassName, rng: Rng): Agent {
   };
 }
 
-/** Escalation: how far through the run's difficulty/payout curve are we? */
+/**
+ * Escalation: how far through the run's difficulty/payout curve are we?
+ *
+ * Two independent drivers, whichever is further along wins: the clock
+ * (elapsed / runSeconds) and your own throughput (deliveries / deliveriesToMax).
+ * Projects start cheap and easy either way, but a run that banks a lot of
+ * deliveries early gets outrun by its own pace, not just the buzzer.
+ */
 export function escalationT(state: RunState): number {
-  const raw = Math.min(1, state.t / state.cfg.runSeconds);
   const e = state.cfg.escalation;
+  const timeRaw = Math.min(1, state.t / state.cfg.runSeconds);
+  const deliveryRaw = Math.min(1, state.deliveries / Math.max(1, e.deliveriesToMax));
+  const raw = Math.max(timeRaw, deliveryRaw);
   switch (e.shape) {
     case "stepped":
       return Math.floor(raw * e.steps) / Math.max(1, e.steps - 1);

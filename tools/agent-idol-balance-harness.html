@@ -204,9 +204,10 @@ canvas{display:block;width:100%;image-rendering:auto}
     escalation: {
       shape: "linear",
       payoutEndMult: 3.2,
-      difficultyStart: 1.4,
+      difficultyStart: 1,
       difficultyEnd: 4.6,
-      steps: 5
+      steps: 5,
+      deliveriesToMax: 40
     },
     failedRunsCostCredits: true,
     discardOverflow: false
@@ -349,8 +350,10 @@ canvas{display:block;width:100%;image-rendering:auto}
     };
   }
   function escalationT(state) {
-    const raw = Math.min(1, state.t / state.cfg.runSeconds);
     const e = state.cfg.escalation;
+    const timeRaw = Math.min(1, state.t / state.cfg.runSeconds);
+    const deliveryRaw = Math.min(1, state.deliveries / Math.max(1, e.deliveriesToMax));
+    const raw = Math.max(timeRaw, deliveryRaw);
     switch (e.shape) {
       case "stepped":
         return Math.floor(raw * e.steps) / Math.max(1, e.steps - 1);
@@ -1011,6 +1014,7 @@ const LEVERS = [
     ["escalation.difficultyStart","Difficulty at start",1,5,0.1,v=>v.toFixed(1)+" pips",null],
     ["escalation.difficultyEnd","Difficulty at end",1,5,0.1,v=>v.toFixed(1)+" pips","...and harder at the same time. This is the main tuning knob."],
     ["escalation.steps","Steps (stepped only)",2,12,1,String,null],
+    ["escalation.deliveriesToMax","Deliveries to max diff.",5,100,1,String,"Escalation also runs off deliveries banked, independent of the clock — whichever is further along wins. A prolific player gets outrun by their own pace."],
   ]],
   ["The player", [
     ["_cps","Clicks per second",0.5,8,0.1,v=>v.toFixed(1)+"/s","How fast a human can actually serve blocked agents. Everything about overwhelm hangs off this."],
