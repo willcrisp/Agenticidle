@@ -194,9 +194,9 @@ export const DEFAULT_CONFIG: Config = {
     // pass) and oneShot deliberately lower: fast, failure-prone runs are what
     // push peak retry demand past the player's hands, so "you are the
     // bottleneck" actually binds. Reasoning effort buys the accuracy back.
-    starter: { runWork: 2, oneShot: 0.52, burnMult: 1.0, label: "Haikuu", chevrons: 0 },
-    senior: { runWork: 3, oneShot: 0.66, burnMult: 1.3, label: "Sonneteer", chevrons: 1 },
-    elite: { runWork: 5, oneShot: 0.78, burnMult: 1.7, label: "Opulent", chevrons: 2 },
+    starter: { runWork: 2, oneShot: 0.52, burnMult: 1.0, label: "Gippity", chevrons: 0 },
+    senior: { runWork: 3, oneShot: 0.66, burnMult: 1.3, label: "Geminaut", chevrons: 1 },
+    elite: { runWork: 5, oneShot: 0.78, burnMult: 1.7, label: "Magnus Opus", chevrons: 2 },
   },
 
   sizes: {

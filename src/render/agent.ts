@@ -55,11 +55,22 @@ function createStation(a: Agent, cfg: Config): StationNodes {
   bub.textContent = BLOCKED_QUESTIONS[a.id % BLOCKED_QUESTIONS.length] ?? "";
   bub.style.display = "none";
 
+  // Per-agent remove control: a red X in the corner, revealed on hover, so a
+  // player can fire one specific body instead of REMOVE's most-recent-first.
+  // Red = click it, per the five-colours rule. Absolute overlay, no layout
+  // height; the delegated handler in gestures.ts reads the station's agent id.
+  const removeX = document.createElement("button");
+  removeX.className = "agent-x";
+  removeX.type = "button";
+  removeX.tabIndex = -1;
+  removeX.textContent = "×";
+  removeX.setAttribute("aria-label", "Remove " + a.name);
+
   // Intelligence rank as stacked chevrons — army-insignia style, more chevrons
-  // = smarter. Grey: this is information, not a click/drag/money/token, so it
-  // stays in the "ignore" colour per the five-colours rule. An absolute overlay
-  // on the sprite corner, so it adds no layout height and doesn't touch the
-  // pre-rendered sprite pipeline (the badge overlays, it doesn't resize it).
+  // = smarter, and the entry tier wears none. Gold, as a rank/prestige marker.
+  // An absolute overlay on the sprite corner, so it adds no layout height and
+  // doesn't touch the pre-rendered sprite pipeline (the badge overlays, it
+  // doesn't resize it).
   const chevrons = document.createElement("div");
   chevrons.className = "chevrons";
   const rank = cls?.chevrons ?? 0;
@@ -92,7 +103,7 @@ function createStation(a: Agent, cfg: Config): StationNodes {
   const runbarFill = document.createElement("i");
   runbar.appendChild(runbarFill);
 
-  root.append(bub, chevrons, sprite, desk, plate, runbar);
+  root.append(bub, removeX, chevrons, sprite, desk, plate, runbar);
 
   return { root, bub, sprite, plateName, runbarFill };
 }
