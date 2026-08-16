@@ -27,29 +27,31 @@ the balance in one go, and it tells you what to fix rather than just failing.
 You land on a start screen: `START RUN`, `HIGH SCORES`, `STUDIO KEY`. The clock
 does not begin until you press start, so reading your key costs you nothing.
 
-The run is 30 minutes and the clock never stops. There are **two gestures**:
+The run is 30 minutes and the clock never stops. There is **one drag** and
+**one click**:
 
 | Gesture | On what | What happens |
 |---|---|---|
 | **Click** | anything **red** | a stuck agent retries |
-| **Drag** | anything **amber** into a dashed box | assign work |
+| **Drag** | a project card into a dashed box | accept it onto a pod |
 
-That is the entire input. Concretely, to get a run going:
+Everything else on the floor — `ADD`, `REMOVE`, the reasoning dial — is a
+plain click, same as `BUY MORE`. Concretely, to get a run going:
 
 1. **Drag a project card** from `PROJECTS AVAILABLE` into any empty pod.
-2. **Drag an idle agent** from `DOING NOTHING` onto that pod's desks. It starts
-   working immediately. Pile on as many as you like — there's no seat limit —
-   but every extra body on the same pod lowers everyone there's one-shot
-   chance, on top of burning that many more credits. Swarming still works;
-   it just isn't free. Watch `HALLUCINATION` on the pod card climb from
-   `LOW` toward `EXTREME` as you crowd it — that's your early warning for how
-   much clicking a pod is about to demand.
-3. When an agent gets stuck it turns red and asks something idiotic. **Click
+2. **Pick a class and click `ADD`** on the pod's own card. Hiring is free and
+   goes straight to work — there's no idle roster to drag from. Pile on as
+   many as you like, up to 15 a pod: there's no seat *cost* below that, but
+   every extra body lowers everyone on the pod's one-shot chance, on top of
+   burning that many more credits. Watch `HALLUCINATION` on the card climb
+   from `LOW` toward `EXTREME` as you crowd it — your early warning for how
+   much clicking a pod is about to demand. Stations shrink as a pod fills so
+   the crowd stays legible.
+3. **`REMOVE`** lets go of the most recently added agent on that pod, free,
+   same as adding one. There's nowhere for them to wait — firing is
+   outright, not a bench.
+4. When an agent gets stuck it turns red and asks something idiotic. **Click
    it.** It retries from zero, so the time it already spent is gone.
-4. **Hire more agents** with `+STARTER` / `+SENIOR` / `+ELITE` next to
-   `DOING NOTHING`. Hiring is free — the cost of a bigger fleet shows up on
-   the floor, not at the door. Higher tiers one-shot more reliably and clear
-   more work per run, at a steeper credit burn.
 5. Payouts **tick down every second** you take. The reasoning dial (`LOW`/
    `MEDIUM`/`HIGH`) trades credits for speed.
 6. Credits are your fuel. At zero, everyone stops dead while the payout keeps
@@ -170,12 +172,14 @@ AI.state.cash            // read anything on the run
 AI.state.agents          // who's working, who's stuck
 AI.paused                // loop state
 AI.tick(AI.state, 1)     // advance one sim-second by hand
-AI.assignAgent(AI.state, AI.state.agents[0].id, 0)   // drive it like a player
+AI.addAgentToPod(AI.state, 0, "senior")   // drive it like a player
 ```
 
 Every mutation goes through an action in `src/sim/tick.ts` — `retryAgent`,
-`assignAgent`, `acceptProject`, `setReasoning`, `buyCreditBlock`, `hireAgent`.
-Nothing else is allowed to write to the run.
+`acceptProject`, `setReasoning`, `buyCreditBlock`, `addAgentToPod`,
+`removeAgentFromPod`, plus the lower-level `hireAgent`/`assignAgent`/
+`benchAgent` the harness still uses directly. Nothing else is allowed to
+write to the run.
 
 ### Tune it
 
@@ -232,15 +236,17 @@ A few things worth knowing before you change rendering code:
 
 Steps 1–4 and 6 are done and the game is playable end to end: the sim core and
 balance harness, the floor bound to live state, the fixed-timestep loop, and
-the two gestures.
+the two gestures — now click-to-retry and drag-a-card-onto-a-pod; agents
+aren't dragged anymore (see `docs/decisions.md`).
 
 Not started: the rest of **step 5** (the credit block-picker and per-agent
 upgrades), **7** the anime.js juice pass, **8** the run summary, **9** audio
 and the tutorial ramp.
 
-Hiring is wired: `+STARTER` / `+SENIOR` / `+ELITE` call `hireAgent` directly,
-free of charge (see `docs/decisions.md`). `BUY MORE` is still a stub wired to
-the cheapest credit block — the real block-picker is what's left of step 5.
+Hiring is wired: each pod's own `ADD` (with a class dropdown) and `REMOVE`
+call `addAgentToPod`/`removeAgentFromPod`, free of charge, straight from the
+project card — there's no idle tray anymore. `BUY MORE` is still a stub wired
+to the cheapest credit block — the real block-picker is what's left of step 5.
 
 ## Open questions
 
@@ -265,6 +271,11 @@ These need playtesting, not argument. They are real and currently unresolved:
    longer more expensive to *acquire*, only to *run* and to crowd a pod with.
    See `docs/decisions.md` for the full note — not fixed in code, needs
    playtesting against `tools/agent-idol-balance-harness.html`.
+7. **3 starting-roster agents spawn idle and are now unreachable.** With the
+   idle tray gone, nothing routes an idle agent to a visible parent, so
+   `cfg.startingRoster`'s three bodies just sit in `state.agents` for the
+   whole run, inert — 3 of `maxRoster`'s 24 slots spent on nothing. Not
+   fixed here; see `docs/decisions.md`.
 
 ## The bar
 

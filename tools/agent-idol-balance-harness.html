@@ -161,6 +161,7 @@ canvas{display:block;width:100%;image-rendering:auto}
     startingCredits: 900,
     startingRoster: ["starter", "starter", "senior"],
     maxRoster: 24,
+    maxAgentsPerPod: 15,
     podCount: 4,
     boardSlots: 3,
     boardRefillSeconds: 4,
@@ -504,6 +505,17 @@ canvas{display:block;width:100%;image-rendering:auto}
     s.telemetry.peakRoster = Math.max(s.telemetry.peakRoster, s.agents.length);
     return true;
   }
+  function clearPod(s, pod) {
+    for (let i = s.agents.length - 1; i >= 0; i--) {
+      const a = s.agents[i];
+      if (a.pod !== pod) continue;
+      if (a.state === "blocked") {
+        const qi = s.blockedQueue.indexOf(a.id);
+        if (qi >= 0) s.blockedQueue.splice(qi, 1);
+      }
+      s.agents.splice(i, 1);
+    }
+  }
   function tick(s, dtSeconds) {
     if (s.finished) return;
     const cfg = s.cfg;
@@ -551,7 +563,7 @@ canvas{display:block;width:100%;image-rendering:auto}
     for (const a of s.agents) {
       if (a.pod !== null) podOccupancy[a.pod] = (podOccupancy[a.pod] ?? 0) + 1;
     }
-    for (const a of s.agents) {
+    for (const a of s.agents.slice()) {
       if (a.state === "blocked") {
         a.blockedTime += dtSeconds;
         s.telemetry.agentBlockedSeconds += dtSeconds;
@@ -607,17 +619,7 @@ canvas{display:block;width:100%;image-rendering:auto}
     s.cash += p.payout;
     s.deliveries++;
     s.pods[pod] = null;
-    for (const a of s.agents) {
-      if (a.pod === pod) {
-        if (a.state === "blocked") {
-          const i = s.blockedQueue.indexOf(a.id);
-          if (i >= 0) s.blockedQueue.splice(i, 1);
-        }
-        a.state = "idle";
-        a.pod = null;
-        a.progress = 0;
-      }
-    }
+    clearPod(s, pod);
   }
   function repossess(s) {
     const order = ["starter", "senior", "elite"];
@@ -992,6 +994,7 @@ const LEVERS = [
     ["startingCash","Starting cash",0,40000,500,money,"Fixed every run so scores stay comparable."],
     ["startingCredits","Starting credits",0,6000,100,String,"How long you can operate before the first block purchase."],
     ["maxRoster","Roster cap",4,40,1,String,"How many bodies the floor can hold. Drives peak click load."],
+    ["maxAgentsPerPod","Max agents / pod",2,25,1,String,"ADD stops working past this many on one project. A UI legibility cap, not an economic one — crowding.penaltyPerExtraAgent already taxes swarming well before you'd reach it."],
     ["podCount","Pods",2,8,1,String,null],
     ["boardSlots","Board slots",1,6,1,String,null],
   ]],

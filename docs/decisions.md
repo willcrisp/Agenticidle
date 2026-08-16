@@ -10,6 +10,55 @@ re-litigation, just implemented.
 
 ---
 
+## 2026-08-16 — No idle tray; ADD/REMOVE per project, capped at 15 a pod
+
+**Supersedes:**
+- The idle tray (`DOING NOTHING`) and drag-to-assign for agents, both
+  introduced this session (see the hiring and free-hiring entries below).
+  Not a handover position — this is this session undoing its own earlier
+  work in favor of something simpler once it was actually played.
+- Partially reverses "No seats" — see below.
+
+**New decision `[DECIDED]`:** each project card carries its own `ADD` /
+`REMOVE` pair, with a class dropdown on `ADD`. `ADD` hires a fresh agent of
+the picked class and puts it straight to work on that pod, in one click —
+no idle roster to drag from. `REMOVE` lets go of the most recently added
+agent on that pod, outright, not benched — hiring and firing are both free,
+so there's nothing to bank by benching instead. There's no longer any
+gesture that drags an agent; the two floor gestures are now click-to-retry
+and drag-a-board-card-into-a-pod. The idle tray is gone, and so is the
+`.empty-slot` drop target that lived inside a pod's desks — there's nothing
+left to drop there.
+
+Knock-on effect worth recording: since there's no idle tray to hold agents
+between jobs, an agent that isn't actively wanted somewhere no longer has
+anywhere to *be*. Delivering a project or abandoning it now removes every
+agent that was on it outright, the same as REMOVE does, rather than idling
+them. A run's starting roster (`cfg.startingRoster`) still spawns idle at
+boot for backward compatibility with the sim's own tests and the balance
+harness, which still exercise the older hire-then-assign two-step primitives
+(`hireAgent` + `assignAgent`, both still real, still used by
+`tools/agent-idol-balance-harness.html`'s strategies) — but those starting
+agents are never shown or reachable from the floor now, since nothing
+routes an idle agent to a visible parent anymore. That's 3 of `maxRoster`'s
+24 slots permanently inert for the length of a run. Small, understood,
+not fixed here — flagging it rather than leaving it silently discovered
+later. Fixing it properly means starting a run with zero agents instead,
+which touches roughly a dozen existing sim tests that assume the starting
+roster exists; not worth doing in the same pass as this UI change.
+
+**New decision `[DECIDED]`, partially reversing "No seats":** a pod caps out
+at `maxAgentsPerPod` (15) agents — `ADD` just stops working past it, greyed
+out same as any other unavailable control. This is a legibility cap, not an
+economic one: `crowding.penaltyPerExtraAgent` already makes swarming that
+hard nearly always a bad idea well before 15, so the cap is rarely the
+thing actually stopping a player — the shrink-as-you-add art in
+`src/render/agent.ts` (four tiers, sprite sizes 64/48/32/16px, the pixel-art
+whole-multiple rule holding at every one) was sized to comfortably handle
+exactly this many on screen at once without wrapping into rows a pod has no
+height for. Worth a second look if a future balance pass makes swarming
+past 15 desirable rather than just survivable, but not re-proposed here.
+
 ## 2026-08-16 — Payout decay becomes a missed-deadline renegotiation, not a continuous drain
 
 **Supersedes** the handover's continuous per-second payout decay (`decay.perSecond`

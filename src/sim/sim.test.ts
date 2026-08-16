@@ -16,6 +16,9 @@ import {
   retryAgent,
   benchAgent,
   hireAgent,
+  addAgentToPod,
+  removeAgentFromPod,
+  abandonProject,
   finalise,
 } from "./tick";
 import { simulateRun } from "../harness/run";
@@ -219,7 +222,7 @@ describe("agents", () => {
     expect(s.credits).toBe(mid);
   });
 
-  it("delivering frees every agent on the project at once", () => {
+  it("delivering lets the whole team on it go at once — there's no idle tray to wait in", () => {
     const cfg = cloneConfig(DEFAULT_CONFIG);
     cfg.classes.starter.oneShot = 1;
     cfg.classes.senior.oneShot = 1;
@@ -230,8 +233,18 @@ describe("agents", () => {
     for (const a of s.agents) assignAgent(s, a.id, 0);
     step(s, 40);
     expect(s.pods[0]).toBeNull();
-    expect(s.agents.every((a) => a.state === "idle")).toBe(true);
+    expect(s.agents.length).toBe(0); // fired outright, not benched idle
     expect(s.deliveries).toBe(1);
+  });
+
+  it("abandoning a project also lets its team go outright", () => {
+    const s = createRun(DEFAULT_CONFIG, "abandon");
+    acceptProject(s, 0, 0);
+    for (const a of s.agents) assignAgent(s, a.id, 0);
+    expect(s.agents.length).toBeGreaterThan(0);
+    expect(abandonProject(s, 0)).toBe(true);
+    expect(s.pods[0]).toBeNull();
+    expect(s.agents.length).toBe(0);
   });
 });
 
@@ -265,6 +278,79 @@ describe("hiring", () => {
     const hired = s.agents[s.agents.length - 1]!;
     expect(assignAgent(s, hired.id, 0)).toBe(true);
     expect(s.agents.filter((a) => a.pod === 0).length).toBe(s.agents.length);
+  });
+});
+
+describe("ADD / REMOVE on a project card", () => {
+  it("ADD hires and assigns to that pod in one step", () => {
+    const s = createRun(DEFAULT_CONFIG, "add");
+    acceptProject(s, 0, 0);
+    const before = s.agents.length;
+    expect(addAgentToPod(s, 0, "senior")).toBe(true);
+    expect(s.agents.length).toBe(before + 1);
+    const added = s.agents[s.agents.length - 1]!;
+    expect(added.cls).toBe("senior");
+    expect(added.state).toBe("running");
+    expect(added.pod).toBe(0);
+  });
+
+  it("ADD refuses on a pod with no project", () => {
+    const s = createRun(DEFAULT_CONFIG, "add-empty");
+    const before = s.agents.length;
+    expect(addAgentToPod(s, 1, "starter")).toBe(false);
+    expect(s.agents.length).toBe(before);
+  });
+
+  it("REMOVE lets go of the most recently added agent on that pod, and only that pod", () => {
+    const s = createRun(DEFAULT_CONFIG, "remove");
+    acceptProject(s, 0, 0);
+    acceptProject(s, 0, 1);
+    addAgentToPod(s, 0, "starter");
+    addAgentToPod(s, 1, "elite");
+    const lastOnPodZero = addAgentToPod(s, 0, "senior") && s.agents[s.agents.length - 1]!;
+    if (!lastOnPodZero) throw new Error("setup failed");
+    const before = s.agents.length;
+
+    expect(removeAgentFromPod(s, 0)).toBe(true);
+    expect(s.agents.length).toBe(before - 1);
+    expect(s.agents.some((a) => a.id === lastOnPodZero.id)).toBe(false); // the newest on pod 0
+    expect(s.agents.some((a) => a.cls === "elite" && a.pod === 1)).toBe(true); // pod 1 untouched
+  });
+
+  it("REMOVE on an empty pod is a no-op", () => {
+    const s = createRun(DEFAULT_CONFIG, "remove-empty");
+    acceptProject(s, 0, 0);
+    const before = s.agents.length;
+    expect(removeAgentFromPod(s, 0)).toBe(false);
+    expect(s.agents.length).toBe(before);
+  });
+
+  it("ADD stops once a pod hits maxAgentsPerPod, independent of the roster cap", () => {
+    const cfg = cloneConfig(DEFAULT_CONFIG);
+    cfg.maxAgentsPerPod = 3;
+    cfg.maxRoster = 999;
+    const s = createRun(cfg, "pod-cap");
+    acceptProject(s, 0, 0);
+    for (let i = 0; i < cfg.maxAgentsPerPod; i++) {
+      expect(addAgentToPod(s, 0, "starter")).toBe(true);
+    }
+    expect(addAgentToPod(s, 0, "starter")).toBe(false);
+    expect(s.agents.filter((a) => a.pod === 0).length).toBe(cfg.maxAgentsPerPod);
+  });
+
+  it("a delivered pod's agents are gone, not idle — the roster count returns to where it started", () => {
+    const cfg = cloneConfig(DEFAULT_CONFIG);
+    cfg.classes.starter.oneShot = 1;
+    cfg.difficulty.penaltyPerPip = 0;
+    const s = createRun(cfg, "add-after-deliver");
+    const before = s.agents.length; // the starting roster, all idle, untouched by this
+    acceptProject(s, 0, 0);
+    s.pods[0]!.work = 6;
+    addAgentToPod(s, 0, "starter");
+    expect(s.agents.length).toBe(before + 1);
+    step(s, 10);
+    expect(s.pods[0]).toBeNull();
+    expect(s.agents.length).toBe(before); // the hire is gone, not idle in the roster
   });
 });
 
