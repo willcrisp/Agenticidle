@@ -1,7 +1,6 @@
 // Agent binding: a reused node pool, one `.station` per agent for its whole
-// lifetime. Reparents between the idle tray and pod desks only when the
-// target actually differs. Pure — reads state, writes DOM, never mutates
-// state.
+// lifetime. Reparents into a pod's desks only when the target actually
+// differs. Pure — reads state, writes DOM, never mutates state.
 
 import type { Agent, RunState } from "../sim/state";
 import type { Refs } from "./shell";
@@ -77,12 +76,17 @@ function createStation(a: Agent): StationNodes {
   return { root, bub, sprite, plateName, runbarFill };
 }
 
+/**
+ * There's no idle tray anymore — ADD hires straight onto a pod and REMOVE
+ * fires outright. An idle agent (the run's starting roster, before anyone's
+ * touched a control) is simply never mounted: `null` here means "leave its
+ * node wherever it already is, unattached," which for a fresh station is
+ * nowhere at all.
+ */
 function targetParent(a: Agent, refs: Refs): HTMLElement | null {
-  if (a.pod !== null) {
-    const podRefs = refs.pods[a.pod];
-    return podRefs ? podRefs.desks : null;
-  }
-  return refs.trayIdle;
+  if (a.pod === null) return null;
+  const podRefs = refs.pods[a.pod];
+  return podRefs ? podRefs.desks : null;
 }
 
 export function renderAgents(state: RunState, refs: Refs): void {
@@ -103,17 +107,7 @@ export function renderAgents(state: RunState, refs: Refs): void {
     // ---- reparent, only when necessary ----
     const target = targetParent(a, refs);
     if (target && nodes.root.parentElement !== target) {
-      if (a.pod !== null) {
-        const podRefs = refs.pods[a.pod];
-        const emptySlot = podRefs ? podRefs.emptySlot.parentElement : null;
-        if (emptySlot) {
-          target.insertBefore(nodes.root, emptySlot);
-        } else {
-          target.appendChild(nodes.root);
-        }
-      } else {
-        target.appendChild(nodes.root);
-      }
+      target.appendChild(nodes.root);
     }
 
     // ---- state classes ----
@@ -148,9 +142,15 @@ export function renderAgents(state: RunState, refs: Refs): void {
     memos.delete(id);
   }
 
-  // ---- swarm: >4 stations in a pod's desks ----
+  // ---- density: shrink the stations as a pod fills, up to maxAgentsPerPod.
+  // Four tiers at clean pixel-art multiples (64/48/32/16px sprites) so a pod
+  // stays legible instead of what the un-tiered version did at 10+ agents —
+  // stations and blocked-bubbles overlapping into an unreadable pile.
   for (const podRefs of refs.pods) {
     const count = podRefs.desks.querySelectorAll(".station").length;
-    podRefs.desks.classList.toggle("swarm", count > 4);
+    const tier = count > 12 ? "packed" : count > 8 ? "dense" : count > 4 ? "swarm" : "";
+    podRefs.desks.classList.toggle("swarm", tier === "swarm");
+    podRefs.desks.classList.toggle("dense", tier === "dense");
+    podRefs.desks.classList.toggle("packed", tier === "packed");
   }
 }

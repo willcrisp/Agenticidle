@@ -35,6 +35,14 @@ export interface Config {
   /** Roster you begin the run with (reputation buys this between runs). */
   startingRoster: ClassName[];
   maxRoster: number;
+  /**
+   * Hard cap on agents stacked on a single pod at once. There's no seat
+   * *cost* below this — the crowding penalty and credit burn already tax
+   * every extra body — but past it the desks stop being legible on screen,
+   * so ADD just stops working. Sized to what the shrink-as-you-add art in
+   * `src/render/agent.ts` was built to handle.
+   */
+  maxAgentsPerPod: number;
   /** Pods on the floor. */
   podCount: number;
   /** Cards on the board at once. */
@@ -170,6 +178,7 @@ export const DEFAULT_CONFIG: Config = {
   startingCredits: 900,
   startingRoster: ["starter", "starter", "senior"],
   maxRoster: 24,
+  maxAgentsPerPod: 15,
   podCount: 4,
   boardSlots: 3,
   boardRefillSeconds: 4,
