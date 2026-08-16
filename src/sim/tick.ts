@@ -77,7 +77,7 @@ export function retryAgent(s: RunState, agentId: number): boolean {
 export function setReasoning(s: RunState, pod: number, reasoning: Reasoning): boolean {
   const p = s.pods[pod];
   if (!p) return false;
-  p.reasoning = s.lowLocked ? "low" : reasoning;
+  p.reasoning = reasoning;
   return true;
 }
 
@@ -179,21 +179,6 @@ export function tick(s: RunState, dtSeconds: number): void {
   const cfg = s.cfg;
   s.t += dtSeconds;
 
-  // --- debt lock / repossession -----------------------------------------
-  const wasLocked = s.lowLocked;
-  s.lowLocked = s.cash < cfg.debt.lowLockAt;
-  if (s.lowLocked && !wasLocked) {
-    for (const p of s.pods) if (p) p.reasoning = "low";
-  }
-  if (s.cash < 0) {
-    s.cash += s.cash * cfg.debt.interestPerSecond * dtSeconds;
-    s.telemetry.debtSeconds += dtSeconds;
-  }
-  if (s.cash < cfg.debt.repoAt && s.t - s.lastRepoAt >= cfg.debt.repoIntervalSeconds) {
-    repossess(s);
-    s.lastRepoAt = s.t;
-  }
-
   // --- token burn -------------------------------------------------------
   let burn = 0;
   for (const a of s.agents) {
@@ -265,13 +250,22 @@ export function tick(s: RunState, dtSeconds: number): void {
     }
     if (stalled) continue; // zero tokens: frozen, while the payout keeps falling
 
-    a.progress += dtSeconds * cfg.reasoning[p.reasoning].speed;
+    // Reasoning no longer changes how fast work accrues — every agent of a
+    // class takes the same time. It's spent on accuracy instead (see the
+    // reasoning bonus in effectiveOneShot below) and on token burn.
+    a.progress += dtSeconds;
     const runWork = cfg.classes[a.cls].runWork;
     if (a.progress < runWork) continue;
 
     // Run resolves.
     a.progress = 0;
-    const chance = effectiveOneShot(cfg, a.cls, p.difficulty, podOccupancy[a.pod] ?? 1);
+    const chance = effectiveOneShot(
+      cfg,
+      a.cls,
+      p.difficulty,
+      podOccupancy[a.pod] ?? 1,
+      p.reasoning
+    );
     if (s.rng.chance(chance)) {
       let delivered = runWork;
       const remaining = p.work - p.workDone;
@@ -317,22 +311,6 @@ function deliver(s: RunState, pod: number): void {
   // Delivering lets the whole team on it go, all at once — free to hire,
   // free to let go, and there's no idle tray for them to wait around in.
   clearPod(s, pod);
-}
-
-function repossess(s: RunState): void {
-  // Cheapest first — the fleet degrades from the bottom.
-  const order: ClassName[] = ["starter", "senior", "elite"];
-  for (const cls of order) {
-    const idx = s.agents.findIndex((a) => a.cls === cls);
-    if (idx >= 0) {
-      const a = s.agents[idx];
-      const qi = s.blockedQueue.indexOf(a.id);
-      if (qi >= 0) s.blockedQueue.splice(qi, 1);
-      s.agents.splice(idx, 1);
-      s.telemetry.agentsRepossessed++;
-      return;
-    }
-  }
 }
 
 /**

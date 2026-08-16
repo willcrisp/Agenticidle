@@ -133,8 +133,8 @@ function keepTokensTopped(s: RunState, api: PlayerApi, targetSeconds: number) {
   const burnRate = running * s.cfg.tokens.burnPerAgentSecond * 1.4;
   const runway = s.tokens / Math.max(0.01, burnRate);
   if (runway > targetSeconds) return;
-  // Only one lot size exists — buy it, cash or no cash. Going negative here
-  // is the same debt tax as anywhere else in the economy.
+  // Only one lot size exists — buy it, cash or no cash. Going negative is
+  // harmless now (debt was removed); it just caps what you can afford next.
   api.buy();
 }
 

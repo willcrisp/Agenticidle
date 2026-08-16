@@ -20,6 +20,7 @@ import {
   addAgentToPod,
   removeAgentFromPod,
   abandonProject,
+  setReasoning,
   finalise,
 } from "./tick";
 import { simulateRun } from "../harness/run";
@@ -518,23 +519,66 @@ describe("economy", () => {
     expect(cashBefore - spentOnce - s.cash).toBe(spentOnce);
   });
 
-  it("debt locks reasoning to LOW", () => {
-    const s = createRun(DEFAULT_CONFIG, "lock");
+  it("negative cash is allowed and harmless — no interest, no lock, no repossession", () => {
+    const s = createRun(DEFAULT_CONFIG, "red-cash");
     acceptProject(s, 0, 0);
     s.pods[0]!.reasoning = "high";
-    s.cash = DEFAULT_CONFIG.debt.lowLockAt - 1;
-    step(s, 1);
-    expect(s.lowLocked).toBe(true);
-    expect(s.pods[0]!.reasoning).toBe("low");
+    const before = s.agents.length;
+    s.cash = -50_000;
+    step(s, 30);
+    // Cash doesn't run away on its own (no interest), reasoning isn't forced
+    // down, and nobody gets repossessed. Debt only limits what you can afford.
+    expect(s.cash).toBe(-50_000);
+    expect(s.pods[0]!.reasoning).toBe("high");
+    expect(s.agents.length).toBe(before);
+  });
+});
+
+describe("reasoning trades tokens for accuracy, not speed", () => {
+  it("higher reasoning raises the one-shot chance (lower error rate); lower reasoning drops it", () => {
+    const low = effectiveOneShot(DEFAULT_CONFIG, "starter", 1, 1, "low");
+    const medium = effectiveOneShot(DEFAULT_CONFIG, "starter", 1, 1, "medium");
+    const high = effectiveOneShot(DEFAULT_CONFIG, "starter", 1, 1, "high");
+    expect(low).toBeLessThan(medium);
+    expect(high).toBeGreaterThan(medium);
+    // The bonus is exactly the configured shift off the medium baseline.
+    expect(high - medium).toBeCloseTo(DEFAULT_CONFIG.reasoning.high.oneShotBonus, 10);
   });
 
-  it("deep debt repossesses agents", () => {
-    const s = createRun(DEFAULT_CONFIG, "repo");
-    s.cash = DEFAULT_CONFIG.debt.repoAt - 1000;
-    const before = s.agents.length;
-    step(s, DEFAULT_CONFIG.debt.repoIntervalSeconds * 2 + 2);
-    expect(s.agents.length).toBeLessThan(before);
-    expect(s.telemetry.agentsRepossessed).toBeGreaterThan(0);
+  it("never lets a reasoning bonus exceed the 0.98 ceiling", () => {
+    const cfg = cloneConfig(DEFAULT_CONFIG);
+    cfg.classes.starter.oneShot = 1;
+    cfg.difficulty.penaltyPerPip = 0;
+    cfg.reasoning.high.oneShotBonus = 0.5; // would push way past 1 uncapped
+    expect(effectiveOneShot(cfg, "starter", 1, 1, "high")).toBe(0.98);
+  });
+
+  it("same-class agents accrue work at the same rate regardless of reasoning", () => {
+    const progressAfter = (r: "low" | "medium" | "high") => {
+      const s = createRun(DEFAULT_CONFIG, "flat-speed");
+      acceptProject(s, 0, 0);
+      setReasoning(s, 0, r);
+      const a = s.agents[0]!;
+      assignAgent(s, a.id, 0);
+      step(s, 3); // under starter runWork (6s): no resolution yet, just accrual
+      return a.progress;
+    };
+    // Reasoning no longer multiplies work-seconds — all three land identically.
+    expect(progressAfter("low")).toBeCloseTo(progressAfter("high"), 10);
+    expect(progressAfter("medium")).toBeCloseTo(progressAfter("high"), 10);
+  });
+
+  it("higher reasoning still burns proportionally more tokens", () => {
+    const burn = (r: "low" | "medium" | "high") => {
+      const s = createRun(DEFAULT_CONFIG, "burn-reason");
+      acceptProject(s, 0, 0);
+      setReasoning(s, 0, r);
+      assignAgent(s, s.agents[0]!.id, 0);
+      const before = s.tokens;
+      step(s, 3);
+      return before - s.tokens;
+    };
+    expect(burn("high")).toBeGreaterThan(burn("low"));
   });
 });
 

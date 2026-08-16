@@ -40,7 +40,6 @@ export interface Stats {
   /** Fraction of runs that ended in the red. */
   debtRate: number;
   stalledSeconds: number;
-  repossessions: number;
   peakClicksPerSecond: number;
   meanBacklog: number;
   /** Fraction of demanded clicks the player could actually serve. */
@@ -66,7 +65,6 @@ export function batch(
     fails: 0,
     debt: 0,
     stalled: 0,
-    repo: 0,
     backlog: 0,
     blockedSeconds: 0,
     blockedEvents: 0,
@@ -90,7 +88,6 @@ export function batch(
     agg.fails += t.runsFailed;
     if (s.cash < 0) agg.debt++;
     agg.stalled += t.stalledSeconds;
-    agg.repo += t.agentsRepossessed;
     agg.blockedSeconds += t.agentBlockedSeconds;
     agg.blockedEvents += t.runsFailed;
     agg.roster += s.agents.length;
@@ -132,7 +129,6 @@ export function batch(
     failRate: +(agg.fails / Math.max(1, agg.attempts)).toFixed(3),
     debtRate: +(agg.debt / runs).toFixed(2),
     stalledSeconds: +(agg.stalled / runs).toFixed(1),
-    repossessions: +(agg.repo / runs).toFixed(2),
     peakClicksPerSecond: +peakCps.toFixed(2),
     meanBacklog: +(agg.backlog / (runs * buckets)).toFixed(2),
     clickServeRate: +(agg.served / Math.max(1, agg.demanded)).toFixed(3),

@@ -3,6 +3,7 @@
 // differs. Pure — reads state, writes DOM, never mutates state.
 
 import type { Agent, RunState } from "../sim/state";
+import type { Config } from "../sim/config";
 import type { Refs } from "./shell";
 import { buildSprites, type SpriteState } from "./sprites";
 
@@ -42,7 +43,9 @@ function simStateToSprite(state: Agent["state"]): SpriteState {
   }
 }
 
-function createStation(a: Agent): StationNodes {
+function createStation(a: Agent, cfg: Config): StationNodes {
+  const cls = cfg.classes[a.cls];
+
   const root = document.createElement("div");
   root.className = "station";
   root.dataset.agentId = String(a.id);
@@ -51,6 +54,20 @@ function createStation(a: Agent): StationNodes {
   bub.className = "bub";
   bub.textContent = BLOCKED_QUESTIONS[a.id % BLOCKED_QUESTIONS.length] ?? "";
   bub.style.display = "none";
+
+  // Intelligence rank as stacked chevrons — army-insignia style, more chevrons
+  // = smarter. Grey: this is information, not a click/drag/money/token, so it
+  // stays in the "ignore" colour per the five-colours rule. An absolute overlay
+  // on the sprite corner, so it adds no layout height and doesn't touch the
+  // pre-rendered sprite pipeline (the badge overlays, it doesn't resize it).
+  const chevrons = document.createElement("div");
+  chevrons.className = "chevrons";
+  const rank = cls?.chevrons ?? 0;
+  for (let i = 0; i < rank; i++) {
+    const chev = document.createElement("i");
+    chev.className = "chev";
+    chevrons.appendChild(chev);
+  }
 
   const sprite = document.createElement("img");
   sprite.className = "sprite";
@@ -64,14 +81,18 @@ function createStation(a: Agent): StationNodes {
   plate.className = "plate";
   const plateName = document.createElement("b");
   plateName.textContent = a.name;
-  plate.appendChild(plateName);
+  // The class's player-facing name under the agent's own name. Grey = info.
+  const clsLabel = document.createElement("small");
+  clsLabel.className = "cls-label";
+  clsLabel.textContent = cls?.label ?? a.cls;
+  plate.append(plateName, clsLabel);
 
   const runbar = document.createElement("div");
   runbar.className = "runbar";
   const runbarFill = document.createElement("i");
   runbar.appendChild(runbarFill);
 
-  root.append(bub, sprite, desk, plate, runbar);
+  root.append(bub, chevrons, sprite, desk, plate, runbar);
 
   return { root, bub, sprite, plateName, runbarFill };
 }
@@ -97,7 +118,7 @@ export function renderAgents(state: RunState, refs: Refs): void {
 
     let nodes = pool.get(a.id);
     if (!nodes) {
-      nodes = createStation(a);
+      nodes = createStation(a, state.cfg);
       pool.set(a.id, nodes);
       memos.set(a.id, { visualState: null, stateClass: null });
     }
@@ -134,7 +155,10 @@ export function renderAgents(state: RunState, refs: Refs): void {
     nodes.bub.style.display = a.state === "blocked" ? "" : "none";
   }
 
-  // ---- repossession: drop nodes for agents no longer in state.agents ----
+  // ---- reap orphaned nodes: an agent that's left state.agents (REMOVE fired
+  // it) keeps no station. This is plain node-pool cleanup, not a debt/
+  // repossession treatment — those mechanics are gone from the sim, so there's
+  // no stagger or `.is-repossessed` styling to run here, just the drop. ----
   for (const [id, nodes] of Array.from(pool)) {
     if (seen.has(id)) continue;
     nodes.root.remove();

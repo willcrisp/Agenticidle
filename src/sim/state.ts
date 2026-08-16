@@ -73,10 +73,6 @@ export interface RunState {
   /** Agents waiting on a click, in the order they broke. */
   blockedQueue: number[];
 
-  /** Forced to LOW reasoning by the debt lock (see `cfg.debt.lowLockAt`). */
-  lowLocked: boolean;
-  lastRepoAt: number;
-
   score: number;
   telemetry: Telemetry;
 }
@@ -96,9 +92,6 @@ export interface Telemetry {
   tokenCurve: number[];
   /** Seconds spent with zero tokens and work outstanding. */
   stalledSeconds: number;
-  /** Seconds spent in debt. */
-  debtSeconds: number;
-  agentsRepossessed: number;
   runsAttempted: number;
   runsFailed: number;
   /** Work-seconds thrown away by overflow past 100%. */
@@ -149,8 +142,6 @@ export function createRun(cfg: Config = DEFAULT_CONFIG, seed = "seed-1"): RunSta
     board: [],
     boardRefillAt: 0,
     blockedQueue: [],
-    lowLocked: false,
-    lastRepoAt: -999,
     score: 0,
     telemetry: emptyTelemetry(cfg),
   };
@@ -255,8 +246,6 @@ export function emptyTelemetry(cfg: Config): Telemetry {
     cashCurve: new Array(buckets).fill(0),
     tokenCurve: new Array(buckets).fill(0),
     stalledSeconds: 0,
-    debtSeconds: 0,
-    agentsRepossessed: 0,
     runsAttempted: 0,
     runsFailed: 0,
     overflowWasted: 0,
@@ -272,19 +261,27 @@ export function emptyTelemetry(cfg: Config): Telemetry {
  * is how many agents (running or blocked) are stacked on the same pod right
  * now, including this one — the crowding penalty applies to every agent
  * beyond the first. Defaults to 1 (no crowding) for call sites that only
- * care about the difficulty curve in isolation.
+ * care about the difficulty curve in isolation. `reasoning` shifts the chance
+ * by `cfg.reasoning[reasoning].oneShotBonus` — thinking harder is now bought
+ * in accuracy, not speed — floored at `cfg.difficulty.floor` and capped at
+ * 0.98 so no dial buys a guaranteed run.
  */
 export function effectiveOneShot(
   cfg: Config,
   cls: ClassName,
   difficulty: number,
-  podAgentCount = 1
+  podAgentCount = 1,
+  reasoning: Reasoning = "medium"
 ): number {
   const base = cfg.classes[cls].oneShot;
   const difficultyPenalty = cfg.difficulty.penaltyPerPip * (difficulty - 1);
   const crowdingPenalty =
     cfg.crowding.penaltyPerExtraAgent * Math.max(0, podAgentCount - 1);
-  return Math.max(cfg.difficulty.floor, base - difficultyPenalty - crowdingPenalty);
+  const reasoningBonus = cfg.reasoning[reasoning].oneShotBonus;
+  return Math.min(
+    0.98,
+    Math.max(cfg.difficulty.floor, base - difficultyPenalty - crowdingPenalty + reasoningBonus)
+  );
 }
 
 export const HALLUCINATION_TIERS: readonly string[] = [
@@ -316,10 +313,21 @@ export function podFailRate(state: RunState, podIndex: number): number | null {
   const onPod = state.agents.filter((a) => a.pod === podIndex);
   if (onPod.length === 0) return null;
   const totalFail = onPod.reduce(
-    (sum, a) => sum + (1 - effectiveOneShot(state.cfg, a.cls, p.difficulty, onPod.length)),
+    (sum, a) =>
+      sum + (1 - effectiveOneShot(state.cfg, a.cls, p.difficulty, onPod.length, p.reasoning)),
     0
   );
   return totalFail / onPod.length;
+}
+
+/**
+ * Seconds until this project's next missed-deadline penalty cliff. Pure sim
+ * accessor for the render layer's countdown — returns Infinity while the card
+ * is unaccepted (nextPenaltyAt is Infinity then), which render treats as "no
+ * timer yet". The sim itself never calls this; it drives a UI readout only.
+ */
+export function secondsToNextDeadline(p: Project, now: number): number {
+  return p.nextPenaltyAt - now;
 }
 
 /** Current token price multiplier — falls with deliveries, not clock time. */

@@ -2,7 +2,12 @@
 // reasoning dial. Pure — reads state, writes DOM, never mutates state.
 
 import type { Project, RunState } from "../sim/state";
-import { HALLUCINATION_TIERS, hallucinationTierIndex, podFailRate } from "../sim/state";
+import {
+  HALLUCINATION_TIERS,
+  hallucinationTierIndex,
+  podFailRate,
+  secondsToNextDeadline,
+} from "../sim/state";
 import type { PodRefs, Refs } from "./shell";
 
 const REASONING_ORDER: readonly Project["reasoning"][] = ["low", "medium", "high"];
@@ -14,6 +19,9 @@ interface PodMemo {
   halluTier: number | null; // -1 for the "—" no-agents state
   addGreyed: boolean | null;
   removeGreyed: boolean | null;
+  labelled: boolean; // ADD dropdown options relabelled from cfg yet?
+  deadline: string | null; // last countdown string written
+  deadlineUrgent: boolean | null;
 }
 
 const memos: PodMemo[] = [];
@@ -28,6 +36,9 @@ function memoFor(i: number): PodMemo {
     halluTier: null,
     addGreyed: null,
     removeGreyed: null,
+    labelled: false,
+    deadline: null,
+    deadlineUrgent: null,
   };
   memos[i] = created;
   return created;
@@ -110,11 +121,80 @@ function renderControls(podRefs: PodRefs, memo: PodMemo, state: RunState, index:
   }
 }
 
+/**
+ * The ADD dropdown is built once in shell.ts (which has no cfg) with the raw
+ * class keys' fallback labels. Rewrite each option's text to the class's
+ * player-facing name from cfg — "Haikuu" / "Sonneteer" / "Opulent" — the one
+ * source of truth for how a class reads. The option *values* stay the class
+ * keys, which is what gestures.ts hands back to `addAgentToPod`. Runs once per
+ * pod: the labels never change within a run.
+ */
+function relabelAddSelect(podRefs: PodRefs, state: RunState): void {
+  const opts = podRefs.addSelect.options;
+  for (let i = 0; i < opts.length; i++) {
+    const opt = opts[i];
+    if (!opt) continue;
+    const cls = opt.value as keyof RunState["cfg"]["classes"];
+    const def = state.cfg.classes[cls];
+    if (def) opt.textContent = def.label;
+  }
+}
+
+/** m:ss, or "Ns" under a minute. Ceil so a live countdown never shows 0 early. */
+function formatDeadline(seconds: number): string {
+  const s = Math.max(0, Math.ceil(seconds));
+  if (s < 60) return s + "s";
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return m + ":" + (r < 10 ? "0" + r : String(r));
+}
+
+/**
+ * "TIME TO NEXT DEADLINE" — seconds until this accepted project's next
+ * renegotiation cliff, so the stepped payout decay is legible. Grey, never
+ * red/amber: it's a decay readout, not a click or a drag. Under
+ * `deadlineWarnSeconds` it gains `.is-urgent`, which style.css expresses as a
+ * bob + brighter contrast (motion, not colour) and drops the bob under
+ * prefers-reduced-motion while the number keeps counting.
+ */
+function renderDeadline(podRefs: PodRefs, memo: PodMemo, state: RunState, p: Project): void {
+  const remaining = secondsToNextDeadline(p, state.t);
+
+  if (!Number.isFinite(remaining)) {
+    // Card isn't on a pod yet — nothing to count down. (Shouldn't happen here,
+    // since an accepted project always is, but the readout stays honest.)
+    if (memo.deadline !== "") {
+      podRefs.deadlineValue.textContent = "—";
+      podRefs.deadline.classList.add("is-empty");
+      memo.deadline = "";
+    }
+    return;
+  }
+
+  const str = formatDeadline(remaining);
+  if (memo.deadline !== str) {
+    podRefs.deadlineValue.textContent = str;
+    podRefs.deadline.classList.remove("is-empty");
+    memo.deadline = str;
+  }
+
+  const urgent = remaining < state.cfg.decay.deadlineWarnSeconds;
+  if (memo.deadlineUrgent !== urgent) {
+    podRefs.deadline.classList.toggle("is-urgent", urgent);
+    memo.deadlineUrgent = urgent;
+  }
+}
+
 export function renderPod(state: RunState, refs: Refs, index: number): void {
   const podRefs = refs.pods[index];
   if (!podRefs) return;
   const p = state.pods[index] ?? null;
   const memo = memoFor(index);
+
+  if (!memo.labelled) {
+    relabelAddSelect(podRefs, state);
+    memo.labelled = true;
+  }
 
   podRefs.root.classList.toggle("is-open", p === null);
 
@@ -129,6 +209,11 @@ export function renderPod(state: RunState, refs: Refs, index: number): void {
       memo.halluTier = null;
       memo.addGreyed = null;
       memo.removeGreyed = null;
+      memo.deadline = null;
+      memo.deadlineUrgent = null;
+      podRefs.deadlineValue.textContent = "—";
+      podRefs.deadline.classList.remove("is-urgent");
+      podRefs.deadline.classList.add("is-empty");
     }
     return;
   }
@@ -149,4 +234,5 @@ export function renderPod(state: RunState, refs: Refs, index: number): void {
   renderSegments(podRefs, memo, p);
   renderHallucination(podRefs, memo, state, index);
   renderControls(podRefs, memo, state, index);
+  renderDeadline(podRefs, memo, state, p);
 }
