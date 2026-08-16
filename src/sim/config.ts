@@ -16,7 +16,7 @@ export interface AgentClassConfig {
   runWork: number;
   /** Base chance a run resolves green, before difficulty and crowding. 0..1 */
   oneShot: number;
-  /** Multiplier on credit burn while running. 1 = baseline. */
+  /** Multiplier on token burn while running. 1 = baseline. */
   burnMult: number;
 }
 
@@ -31,7 +31,8 @@ export interface Config {
   runSeconds: number;
   tickHz: number;
   startingCash: number;
-  startingCredits: number;
+  /** Tokens the reserve starts a run with. Drains, never refills on its own. */
+  startingTokens: number;
   /** Roster you begin the run with (reputation buys this between runs). */
   startingRoster: ClassName[];
   maxRoster: number;
@@ -65,7 +66,7 @@ export interface Config {
     /**
      * One-shot penalty per agent stacked on a project beyond the first.
      * Subtractive, same shape as the difficulty penalty, and stacks with it.
-     * Hiring is free — this, plus each extra agent's own credit burn, is the
+     * Hiring is free — this, plus each extra agent's own token burn, is the
      * whole brake on swarming. No seat limit; a bad idea just gets worse the
      * harder you lean on it.
      */
@@ -95,18 +96,23 @@ export interface Config {
   /**
    * The reasoning dial. Thinking harder gets through the work faster and costs
    * proportionally more tokens; `speed` multiplies work-seconds accrued,
-   * `burn` multiplies credit spend.
+   * `burn` multiplies token spend.
    */
   reasoning: Record<Reasoning, { speed: number; burn: number }>;
 
-  credits: {
+  tokens: {
     /** Tokens per second per running agent at MEDIUM, burnMult 1. */
     burnPerAgentSecond: number;
     /** Does a blocked agent keep burning while it waits for a click? */
     blockedAgentsBurn: boolean;
-    /** Blocks the player can buy: bigger = better rate. */
-    blocks: { tokens: number; price: number }[];
-    /** Token prices fall as projects are delivered. */
+    /**
+     * BUY MORE always buys the same lot — a flat top-up, no picker, no
+     * ceiling on how many you can stack. Just cash for tokens, over and over.
+     */
+    lotSize: number;
+    /** Cash cost of one lot, before the delivery discount below. */
+    lotPrice: number;
+    /** Lot price falls as projects are delivered. */
     priceDropPerDelivery: number;
     priceFloorMult: number;
   };
@@ -139,8 +145,8 @@ export interface Config {
     deliveriesToMax: number;
   };
 
-  /** A failed run contributes 0% but has already burned its credits. */
-  failedRunsCostCredits: boolean;
+  /** A failed run contributes 0% but has already burned its tokens. */
+  failedRunsCostTokens: boolean;
   /** Slice overflow past 100% is discarded (a hidden crowding penalty if true). */
   discardOverflow: boolean;
 }
@@ -149,7 +155,7 @@ export const DEFAULT_CONFIG: Config = {
   runSeconds: 1800,
   tickHz: 30,
   startingCash: 5000,
-  startingCredits: 900,
+  startingTokens: 100_000,
   startingRoster: ["starter", "starter", "senior"],
   maxRoster: 24,
   podCount: 4,
@@ -188,15 +194,11 @@ export const DEFAULT_CONFIG: Config = {
     high: { speed: 1.7, burn: 2.4 },
   },
 
-  credits: {
-    burnPerAgentSecond: 3.0,
+  tokens: {
+    burnPerAgentSecond: 300,
     blockedAgentsBurn: false,
-    blocks: [
-      { tokens: 500, price: 750 },
-      { tokens: 1500, price: 2050 },
-      { tokens: 5000, price: 6250 },
-      { tokens: 15000, price: 17250 },
-    ],
+    lotSize: 1_000_000,
+    lotPrice: 9000,
     priceDropPerDelivery: 0.03,
     priceFloorMult: 0.45,
   },
@@ -217,7 +219,7 @@ export const DEFAULT_CONFIG: Config = {
     deliveriesToMax: 40,
   },
 
-  failedRunsCostCredits: true,
+  failedRunsCostTokens: true,
   discardOverflow: false,
 };
 

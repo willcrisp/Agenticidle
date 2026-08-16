@@ -10,6 +10,44 @@ re-litigation, just implemented.
 
 ---
 
+## 2026-08-16 — Credits are renamed tokens, and the shop is now one flat lot
+
+**Supersedes:** every "credits" reference in the handover and in CLAUDE.md's
+own "five colours" list — the resource agents burn is now called **tokens**
+everywhere, in code and on screen. This is a rename plus two mechanical
+simplifications to the same resource, not a new mechanic:
+
+**New decision `[DECIDED]`:**
+
+1. **The reserve has no ceiling.** It never had one in the sim — `s.credits`
+   (now `s.tokens`) was always an unbounded number the burn loop subtracted
+   from — but the topbar rendered it as a `.cred-bar` filled against
+   `startingCredits`, which visually implied a cap that didn't exist. The bar
+   is gone; the topbar now shows `TOKENS` as a plain number, styled like
+   `MONEY`, that only ever ticks down between purchases. `src/render/topbar.ts`
+   and `.tokens`/`.tokens-v` in `src/style.css` replace `.cred-bar` entirely.
+2. **BUY MORE buys one flat lot, not a tiered pick.** The old
+   `cfg.credits.blocks` array (four sizes, better rate at the top) is gone.
+   `cfg.tokens.lotSize` / `cfg.tokens.lotPrice` replace it: BUY MORE always
+   adds the same `lotSize` tokens for `lotPrice` cash (still discounted by
+   `tokenPriceMult` as deliveries bank), as many times as cash allows. This
+   was already most of the way there — `buyCreditBlock(state, 0)` on
+   `pointerdown` was marked `TODO(step-5): replace with the real
+   block-picker shop` — the decision here is that the flat lot **is** the
+   real shop, not a placeholder for one. A graduated picker needs explaining
+   ("why is the top tier a better rate?"); CLAUDE.md's quality bar pushes
+   back on exactly that kind of invisible rule.
+
+**Numbers moved with the rename** (still nobody's signed off, per
+`config.ts`'s own preamble): `startingTokens` 900 → 100,000,
+`burnPerAgentSecond` 3.0 → 300, one lot = 1,000,000 tokens for $9,000. All
+three moved by the same ~100× so the felt pacing — how many seconds of
+runway a purchase buys a running agent — didn't change, only the numbers
+did: a big, six-figure reserve draining by three figures a second reads like
+what it's meant to be, an LLM token budget, instead of a poker-chip count.
+Re-tune from here in `tools/agent-idol-balance-harness.html` same as any
+other lever.
+
 ## 2026-08-16 — The crowding penalty gets a readout: hallucination rate
 
 **Adds to** the crowding-penalty decision below — this is the UI surface

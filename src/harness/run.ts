@@ -18,7 +18,7 @@ export function simulateRun(cfg: Config, strat: Strategy, seed: string): RunStat
       Math.floor(s.t / s.telemetry.bucketSeconds)
     );
     s.telemetry.cashCurve[bucket] = Math.round(s.cash);
-    s.telemetry.creditCurve[bucket] = Math.round(s.credits);
+    s.telemetry.tokenCurve[bucket] = Math.round(s.tokens);
   }
   finalise(s);
   return s;

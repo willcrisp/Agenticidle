@@ -71,7 +71,7 @@
   --ok: #78906c; /* sage       — success, money */
   --fail: #a5605a; /* dusty clay — blocked, click it */
   --idle: #ac9463; /* brass      — idle, drag it */
-  --tok: #6b8598; /* slate      — credits */
+  --tok: #6b8598; /* slate      — tokens */
   --px: "Silkscreen", "JetBrains Mono", monospace;
   --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
   --sans: "Inter", system-ui, sans-serif;
@@ -126,8 +126,9 @@ button {
    FLOOR — the game shell, ported from docs/agent-idol-v9.html's
    `.game` subtree. See src/render/shell.ts for the deliberate
    deviations from the mockup (run clock, `.is-open`, `<img>` sprites,
-   no `.cred-v`, etc). Everything below is layout/state CSS only —
-   the actual DOM is built once by buildShell().
+   `.tokens-v` in place of the mockup's `.cred-bar`, etc). Everything
+   below is layout/state CSS only — the actual DOM is built once by
+   buildShell().
    ================================================================ */
 
 .game {
@@ -145,7 +146,7 @@ button {
   display: block;
 }
 
-/* ================= TOP: two numbers, credits, buttons, clock ================= */
+/* ================= TOP: money, tokens, buttons, clock ================= */
 .topbar {
   height: 70px;
   flex: none;
@@ -179,43 +180,26 @@ button {
   margin-top: 8px;
 }
 
-.credits {
-  flex: 1;
-  max-width: 520px;
-}
-.cred-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-}
-.cred-l {
+/* Just a number, styled like MONEY but in the token colour. No bar, no
+   ceiling — it decrements as agents burn it and BUY MORE tops it up by a
+   flat lot, so there's nothing to fill toward. */
+.tokens {
   font-family: var(--px);
+  font-size: 30px;
+  color: var(--tok);
+  letter-spacing: 0.01em;
+  line-height: 1;
+}
+.tokens-v {
+  display: block;
+  font-weight: 400;
+}
+.tokens span {
+  display: block;
   font-size: 9px;
-  letter-spacing: 0.14em;
   color: var(--faint);
-}
-.cred-bar {
-  height: 12px;
-  background: #0d1114;
-  border: 1px solid #0d1114;
+  letter-spacing: 0.14em;
   margin-top: 8px;
-  position: relative;
-  overflow: hidden;
-}
-/* Continuous fill — animated with transform only, never width. */
-.cred-bar i {
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 100%;
-  background: var(--tok);
-  transform: scaleX(0);
-  transform-origin: left;
-}
-.cred-bar u {
-  position: absolute;
-  inset: 0;
-  text-decoration: none;
-  background: repeating-linear-gradient(90deg, transparent 0 33px, #0d1114 33px 34px);
 }
 
 .buy {
@@ -665,7 +649,7 @@ button {
 /* Same click vocabulary as BUY MORE, coloured in the currency it spends
    toward: an agent. Hiring is free — no price on the button, same as
    BUY MORE shows none. What it costs you shows up later, in crowding and
-   credits, not at the door. */
+   tokens, not at the door. */
 .hire-btn {
   font-family: var(--px);
   font-size: 10px;
@@ -867,7 +851,7 @@ button {
 
 /* ---- studio panel (save/identity) ----------------------------------------
    Deliberately colourless. Five colours, five meanings: red = click it,
-   amber = drag it, green = money, blue = credits, grey = ignore. This panel
+   amber = drag it, green = money, blue = tokens, grey = ignore. This panel
    carries no game meaning, so it takes no colour — and a red button here
    would read as "click me" during a run, which is the opposite of true.
    Existing grey tokens only; no new custom properties. */

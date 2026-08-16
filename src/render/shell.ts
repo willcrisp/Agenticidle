@@ -5,7 +5,8 @@
 // fake demo data stripped — see CLAUDE.md and the WP-2 brief for the list of
 // deliberate deviations from the mockup (run clock, `.is-open` instead of
 // `.open`, `<img class="sprite">` nodes instead of pixel-plotted elements,
-// no `.cred-v`, etc).
+// credits→tokens rebuilt as a plain `.tokens-v` number instead of the
+// mockup's `.cred-bar` fill, etc).
 
 const POD_COUNT = 4;
 const REASONING_KEYS: readonly string[] = ["low", "medium", "high"];
@@ -30,8 +31,7 @@ export interface PodRefs {
 export interface Refs {
   game: HTMLElement;
   money: HTMLElement;
-  creditFill: HTMLElement; // the scaleX target
-  creditLabel: HTMLElement;
+  tokens: HTMLElement; // the token count text node
   buyBtn: HTMLElement;
   clock: HTMLElement;
   pauseBtn: HTMLElement;
@@ -60,8 +60,7 @@ function text(tag: keyof HTMLElementTagNameMap, className: string, content: stri
 function buildTopbar(): {
   topbar: HTMLElement;
   money: HTMLElement;
-  creditFill: HTMLElement;
-  creditLabel: HTMLElement;
+  tokens: HTMLElement;
   buyBtn: HTMLElement;
   clock: HTMLElement;
   pauseBtn: HTMLElement;
@@ -76,15 +75,12 @@ function buildTopbar(): {
   const moneyLabel = text("span", "", "MONEY");
   money.append(moneyValue, moneyLabel);
 
-  const credits = el("div", "credits");
-  const credTop = el("div", "cred-top");
-  const creditLabel = text("span", "cred-l", "CREDITS");
-  credTop.append(creditLabel);
-  const credBar = el("div", "cred-bar");
-  const creditFill = el("i");
-  const credTick = el("u");
-  credBar.append(creditFill, credTick);
-  credits.append(credTop, credBar);
+  // Just a number — no bar, no ceiling. It decrements as agents burn it and
+  // BUY MORE tops it up by a flat lot; there's nothing to fill toward.
+  const tokens = el("div", "tokens");
+  const tokensValue = text("b", "tokens-v", "0");
+  const tokensLabel = text("span", "", "TOKENS");
+  tokens.append(tokensValue, tokensLabel);
 
   const buyBtn = text("div", "buy", "BUY MORE");
   buyBtn.id = "buy";
@@ -97,18 +93,17 @@ function buildTopbar(): {
   const pauseBtn = text("div", "pause", "❚❚");
   pauseBtn.id = "pause";
 
-  // Grey, and sat with the pause button rather than the money/credit cluster:
+  // Grey, and sat with the pause button rather than the money/token cluster:
   // it is chrome, not a game action. Nothing on the floor depends on it.
   const studioBtn = text("div", "studio-btn-top", "STUDIO");
   studioBtn.id = "studio";
 
-  topbar.append(money, credits, buyBtn, spacer, clock, studioBtn, pauseBtn);
+  topbar.append(money, tokens, buyBtn, spacer, clock, studioBtn, pauseBtn);
 
   return {
     topbar,
     money: moneyValue,
-    creditFill,
-    creditLabel,
+    tokens: tokensValue,
     buyBtn,
     clock,
     pauseBtn,
@@ -196,7 +191,7 @@ function buildHireRow(): { hireRow: HTMLElement; hireButtons: HTMLElement[] } {
     if (cls === undefined || label === undefined) continue;
     // No price on the button — hiring is free. The only thing worth
     // learning by trying is that a bigger fleet costs you in crowding and
-    // credits once you actually put it to work, not at the door.
+    // tokens once you actually put it to work, not at the door.
     const btn = text("button", "hire-btn", "+" + label);
     btn.dataset.hire = cls;
     hireButtons.push(btn);
@@ -244,8 +239,7 @@ export function buildShell(root: HTMLElement): Refs {
 
   const game = el("div", "game");
 
-  const { topbar, money, creditFill, creditLabel, buyBtn, clock, pauseBtn, studioBtn } =
-    buildTopbar();
+  const { topbar, money, tokens, buyBtn, clock, pauseBtn, studioBtn } = buildTopbar();
 
   const podsContainer = el("div", "pods");
   const pods: PodRefs[] = [];
@@ -263,8 +257,7 @@ export function buildShell(root: HTMLElement): Refs {
   return {
     game,
     money,
-    creditFill,
-    creditLabel,
+    tokens,
     buyBtn,
     clock,
     pauseBtn,

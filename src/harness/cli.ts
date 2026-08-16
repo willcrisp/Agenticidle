@@ -85,7 +85,7 @@ function showSweep(
 showSweep("run length (min)", (c, v) => (c.runSeconds = v * 60), [15, 20, 30, 45], (v) => v + "m");
 showSweep("decay /sec", (c, v) => (c.decay.perSecond = v), [0.003, 0.006, 0.01, 0.015], (v) => (v * 100).toFixed(1) + "%");
 showSweep("difficulty penalty", (c, v) => (c.difficulty.penaltyPerPip = v), [0.05, 0.09, 0.13, 0.18], (v) => (v * 100).toFixed(0) + "%");
-showSweep("credit burn/agent/s", (c, v) => (c.credits.burnPerAgentSecond = v), [0.6, 1.1, 1.8, 2.6]);
+showSweep("token burn/agent/s", (c, v) => (c.tokens.burnPerAgentSecond = v), [60, 110, 180, 260]);
 showSweep("escalation payout", (c, v) => (c.escalation.payoutEndMult = v), [1.5, 2.2, 3.2, 4.5], (v) => v + "x");
 showSweep("deliveries to max diff.", (c, v) => (c.escalation.deliveriesToMax = v), [20, 30, 40, 60], (v) => v.toString());
 showSweep("elite run work", (c, v) => (c.classes.elite.runWork = v), [10, 15, 20, 28], (v) => v + "s");

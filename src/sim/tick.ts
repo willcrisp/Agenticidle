@@ -71,20 +71,25 @@ export function setReasoning(s: RunState, pod: number, reasoning: Reasoning): bo
   return true;
 }
 
-export function buyCreditBlock(s: RunState, blockIndex: number): boolean {
-  const block = s.cfg.credits.blocks[blockIndex];
-  if (!block) return false;
-  const price = Math.round(block.price * tokenPriceMult(s));
+/**
+ * BUY MORE. Always the same lot — `cfg.tokens.lotSize` tokens for
+ * `cfg.tokens.lotPrice` cash, discounted by `tokenPriceMult`. No picker, no
+ * tiers: the reserve just goes up by a flat amount, as many times as cash
+ * allows.
+ */
+export function buyTokens(s: RunState): boolean {
+  const { tokens } = s.cfg;
+  const price = Math.round(tokens.lotPrice * tokenPriceMult(s));
   s.cash -= price;
-  s.credits += block.tokens;
-  s.creditsBought += block.tokens;
-  s.telemetry.moneySpentOnCredits += price;
+  s.tokens += tokens.lotSize;
+  s.tokensBought += tokens.lotSize;
+  s.telemetry.moneySpentOnTokens += price;
   return true;
 }
 
 /**
  * Hiring is free. Agents are free to spawn — the cost of a bigger fleet is
- * paid on the floor, not at the register: every agent burns its own credits
+ * paid on the floor, not at the register: every agent burns its own tokens
  * once it's running, and stacking more of them on one project drives that
  * project's crowding penalty (see `effectiveOneShot`). The only gate here is
  * the roster cap.
@@ -114,7 +119,7 @@ export function tick(s: RunState, dtSeconds: number): void {
   const cfg = s.cfg;
   s.t += dtSeconds;
 
-  // --- credit limit / repossession -----------------------------------------
+  // --- debt lock / repossession -----------------------------------------
   const wasLocked = s.lowLocked;
   s.lowLocked = s.cash < cfg.debt.lowLockAt;
   if (s.lowLocked && !wasLocked) {
@@ -129,26 +134,26 @@ export function tick(s: RunState, dtSeconds: number): void {
     s.lastRepoAt = s.t;
   }
 
-  // --- credit burn ----------------------------------------------------------
+  // --- token burn -------------------------------------------------------
   let burn = 0;
   for (const a of s.agents) {
     if (a.pod === null) continue;
     const p = s.pods[a.pod];
     if (!p) continue;
     const counts =
-      a.state === "running" || (a.state === "blocked" && cfg.credits.blockedAgentsBurn);
+      a.state === "running" || (a.state === "blocked" && cfg.tokens.blockedAgentsBurn);
     if (!counts) continue;
     burn +=
-      cfg.credits.burnPerAgentSecond *
+      cfg.tokens.burnPerAgentSecond *
       cfg.classes[a.cls].burnMult *
       cfg.reasoning[p.reasoning].burn;
   }
   const wanted = burn * dtSeconds;
-  const stalled = s.credits <= 0 && wanted > 0;
+  const stalled = s.tokens <= 0 && wanted > 0;
   if (stalled) {
     s.telemetry.stalledSeconds += dtSeconds;
   } else {
-    s.credits = Math.max(0, s.credits - wanted);
+    s.tokens = Math.max(0, s.tokens - wanted);
   }
 
   // --- decay ----------------------------------------------------------------
@@ -182,7 +187,7 @@ export function tick(s: RunState, dtSeconds: number): void {
       a.pod = null;
       continue;
     }
-    if (stalled) continue; // zero credits: frozen, while the payout keeps falling
+    if (stalled) continue; // zero tokens: frozen, while the payout keeps falling
 
     a.progress += dtSeconds * cfg.reasoning[p.reasoning].speed;
     const runWork = cfg.classes[a.cls].runWork;
@@ -266,7 +271,7 @@ function repossess(s: RunState): void {
 /**
  * At the buzzer: delivered work has already banked. Everything still in
  * progress pays its completion percentage of its CURRENT, decayed value.
- * Leftover credits are worth nothing.
+ * Leftover tokens are worth nothing.
  */
 export function finalise(s: RunState): void {
   if (s.finished) return;

@@ -40,7 +40,7 @@ That is the entire input. Concretely, to get a run going:
 2. **Drag an idle agent** from `DOING NOTHING` onto that pod's desks. It starts
    working immediately. Pile on as many as you like — there's no seat limit —
    but every extra body on the same pod lowers everyone there's one-shot
-   chance, on top of burning that many more credits. Swarming still works;
+   chance, on top of burning that many more tokens. Swarming still works;
    it just isn't free. Watch `HALLUCINATION` on the pod card climb from
    `LOW` toward `EXTREME` as you crowd it — that's your early warning for how
    much clicking a pod is about to demand.
@@ -49,11 +49,13 @@ That is the entire input. Concretely, to get a run going:
 4. **Hire more agents** with `+STARTER` / `+SENIOR` / `+ELITE` next to
    `DOING NOTHING`. Hiring is free — the cost of a bigger fleet shows up on
    the floor, not at the door. Higher tiers one-shot more reliably and clear
-   more work per run, at a steeper credit burn.
+   more work per run, at a steeper token burn.
 5. Payouts **tick down every second** you take. The reasoning dial (`LOW`/
-   `MEDIUM`/`HIGH`) trades credits for speed.
-6. Credits are your fuel. At zero, everyone stops dead while the payout keeps
-   falling. `BUY MORE` is a placeholder until the shop's block-picker lands.
+   `MEDIUM`/`HIGH`) trades tokens for speed.
+6. Tokens are your fuel — a plain, uncapped number that only ever goes down.
+   At zero, everyone stops dead while the payout keeps falling. `BUY MORE`
+   tops the reserve up by a flat lot of tokens for cash; there's no picker,
+   it's always the same lot.
 
 `Esc` or the topbar button pauses. Blurring the window auto-pauses; an `Esc`
 pause does not un-pause itself when you click back in.
@@ -67,7 +69,7 @@ Five colours, five meanings, nothing else is coloured.
 | **Red** | click it |
 | **Amber** | drag it |
 | **Green** | money |
-| **Blue** | credits |
+| **Blue** | tokens |
 | **Grey** | ignore — if the screen is grey, put the kettle on |
 
 The clock is deliberately never red. Red means "click me", and you cannot
@@ -174,7 +176,7 @@ AI.assignAgent(AI.state, AI.state.agents[0].id, 0)   // drive it like a player
 ```
 
 Every mutation goes through an action in `src/sim/tick.ts` — `retryAgent`,
-`assignAgent`, `acceptProject`, `setReasoning`, `buyCreditBlock`, `hireAgent`.
+`assignAgent`, `acceptProject`, `setReasoning`, `buyTokens`, `hireAgent`.
 Nothing else is allowed to write to the run.
 
 ### Tune it
@@ -211,7 +213,7 @@ main.ts        the loop, pause, and all the wiring
 the two meet.
 
 If pausing the game must freeze it, the sim owns it — the payout countdown,
-credit drain, run progress and the run clock are all sim. Sprite walks, bubble
+token drain, run progress and the run clock are all sim. Sprite walks, bubble
 bobs and slice pops are fx. Two independent clocks driving the same value is
 the bug class this rule exists to prevent.
 
@@ -234,13 +236,13 @@ Steps 1–4 and 6 are done and the game is playable end to end: the sim core and
 balance harness, the floor bound to live state, the fixed-timestep loop, and
 the two gestures.
 
-Not started: the rest of **step 5** (the credit block-picker and per-agent
-upgrades), **7** the anime.js juice pass, **8** the run summary, **9** audio
-and the tutorial ramp.
+Not started: the rest of **step 5** (per-agent upgrades), **7** the anime.js
+juice pass, **8** the run summary, **9** audio and the tutorial ramp.
 
 Hiring is wired: `+STARTER` / `+SENIOR` / `+ELITE` call `hireAgent` directly,
-free of charge (see `docs/decisions.md`). `BUY MORE` is still a stub wired to
-the cheapest credit block — the real block-picker is what's left of step 5.
+free of charge (see `docs/decisions.md`). `BUY MORE` is done — it calls
+`buyTokens` directly, no picker: tokens are bought in one flat lot
+(`cfg.tokens.lotSize`), as many times as cash allows (see `docs/decisions.md`).
 
 ## Open questions
 

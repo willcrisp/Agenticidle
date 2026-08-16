@@ -29,7 +29,7 @@ import {
   assignAgent,
   acceptProject,
   setReasoning,
-  buyCreditBlock,
+  buyTokens,
   hireAgent,
 } from "../sim/tick";
 
@@ -254,9 +254,9 @@ export function mountGestures(state: RunState, refs: Refs): () => void {
     retryAgent(state, id);
   }
 
-  // TODO(step-5): replace with the real block-picker shop
+  // Always the same lot — no picker. See `buyTokens` in sim/tick.ts.
   function onBuyPointerDown(): void {
-    buyCreditBlock(state, 0);
+    buyTokens(state);
   }
 
   // Hiring is a plain click, same vocabulary as BUY MORE: it isn't one of the
