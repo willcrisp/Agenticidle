@@ -64,7 +64,7 @@ describe("pro-rata on decayed value", () => {
     acceptProject(s, 0, 0);
     const p = s.pods[0]!;
     p.workDone = p.work / 2;
-    step(s, 120); // let it decay
+    step(s, 125); // past even a huge job's deadline window — let it miss
     expect(p.payout).toBeLessThan(p.originalPayout);
 
     const cashBefore = s.cash;
@@ -84,6 +84,79 @@ describe("pro-rata on decayed value", () => {
     finalise(a);
     finalise(b);
     expect(a.score).toBe(b.score);
+  });
+});
+
+describe("renegotiation (missed-deadline decay)", () => {
+  it("derives each project's window and penalty from its own size and difficulty", () => {
+    // Direct formula check, independent of which size/difficulty the RNG
+    // happened to spawn — every card on the board must satisfy it.
+    const s = createRun(DEFAULT_CONFIG, "formula");
+    for (const p of s.board) {
+      const expectedInterval =
+        DEFAULT_CONFIG.decay.baseIntervalSeconds + DEFAULT_CONFIG.decay.intervalPerWork * p.work;
+      const expectedPenalty =
+        DEFAULT_CONFIG.decay.basePenaltyFraction +
+        DEFAULT_CONFIG.decay.penaltyPerDifficultyPip * (p.difficulty - 1);
+      expect(p.deadlineIntervalSeconds).toBeCloseTo(expectedInterval, 10);
+      expect(p.penaltyFraction).toBeCloseTo(expectedPenalty, 10);
+    }
+  });
+
+  it("does not start the deadline clock for a card still sitting on the board", () => {
+    const s = createRun(DEFAULT_CONFIG, "board-safe");
+    const p = s.board[0]!;
+    expect(p.nextPenaltyAt).toBe(Infinity);
+    step(s, 500);
+    expect(s.board[0]).toBe(p); // untouched — never accepted, so never refilled either
+    expect(p.payout).toBe(p.originalPayout);
+  });
+
+  it("holds the payout perfectly flat inside the deadline window", () => {
+    const s = createRun(DEFAULT_CONFIG, "flat");
+    acceptProject(s, 0, 0);
+    const p = s.pods[0]!;
+    const original = p.payout;
+    step(s, p.deadlineIntervalSeconds - 1);
+    expect(p.payout).toBe(original);
+  });
+
+  it("steps the payout down by penaltyFraction of the ORIGINAL offer the instant the window is missed", () => {
+    const s = createRun(DEFAULT_CONFIG, "cliff");
+    acceptProject(s, 0, 0);
+    const p = s.pods[0]!;
+    const expected = p.originalPayout * (1 - p.penaltyFraction);
+    step(s, p.deadlineIntervalSeconds + 1);
+    expect(p.payout).toBeCloseTo(expected, 0);
+  });
+
+  it("keeps stepping down on every further miss, and never below the configured floor", () => {
+    const s = createRun(DEFAULT_CONFIG, "steps");
+    acceptProject(s, 0, 0);
+    const p = s.pods[0]!;
+    step(s, p.deadlineIntervalSeconds * 3 + 1);
+    const afterThreeMisses = Math.max(
+      p.originalPayout * DEFAULT_CONFIG.decay.floor,
+      p.originalPayout * (1 - 3 * p.penaltyFraction)
+    );
+    expect(p.payout).toBeCloseTo(afterThreeMisses, 0);
+
+    step(s, p.deadlineIntervalSeconds * 50); // however many more it takes to bottom out
+    expect(p.payout).toBeCloseTo(p.originalPayout * DEFAULT_CONFIG.decay.floor, 0);
+  });
+
+  it("a tick spanning more than one missed window still applies every step it owes", () => {
+    // A single large dt (e.g. a slow frame) must not let a project skip a
+    // penalty it was due — regression guard for the while-loop in tick().
+    const s = createRun(DEFAULT_CONFIG, "bigdt");
+    acceptProject(s, 0, 0);
+    const p = s.pods[0]!;
+    const expected = Math.max(
+      p.originalPayout * DEFAULT_CONFIG.decay.floor,
+      p.originalPayout * (1 - 4 * p.penaltyFraction)
+    );
+    tick(s, p.deadlineIntervalSeconds * 4 + 1); // one giant tick, four misses owed
+    expect(p.payout).toBeCloseTo(expected, 0);
   });
 });
 
@@ -318,18 +391,18 @@ describe("economy", () => {
     expect(elite / starter).toBeGreaterThan(1.5);
   });
 
-  it("zero credits stalls work while the payout keeps decaying", () => {
+  it("zero credits stalls work while the deadline clock keeps running", () => {
     const s = createRun(DEFAULT_CONFIG, "stall");
     s.credits = 0;
     acceptProject(s, 0, 0);
     const p = s.pods[0]!;
     for (const a of s.agents) assignAgent(s, a.id, 0);
     const payBefore = p.payout;
-    step(s, 30);
+    step(s, 125); // past even a huge job's deadline window
     expect(p.workDone).toBe(0);
     expect(s.agents.every((a) => a.progress === 0)).toBe(true);
     expect(p.payout).toBeLessThan(payBefore);
-    expect(s.telemetry.stalledSeconds).toBeGreaterThan(25);
+    expect(s.telemetry.stalledSeconds).toBeGreaterThan(120);
   });
 
   it("token prices fall with deliveries, not clock time", () => {

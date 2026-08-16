@@ -10,6 +10,49 @@ re-litigation, just implemented.
 
 ---
 
+## 2026-08-16 — Payout decay becomes a missed-deadline renegotiation, not a continuous drain
+
+**Supersedes** the handover's continuous per-second payout decay (`decay.perSecond`
+in the earlier `config.ts`, driving `tick.ts`'s decay block every frame) and the
+pro-rata-on-decayed-value mechanic built on top of it. The pro-rata rule itself
+(finalise() pays completion % of the project's CURRENT payout, not its original
+offer) is **not** touched — it still reads whatever `p.payout` is at the buzzer,
+which is now a stepped value instead of a continuously falling one.
+
+**New decision `[DECIDED]`:** a project's payout holds perfectly flat while it's
+inside its deadline interval. Missing the interval means the client
+renegotiates: payout steps down once by a fraction of the ORIGINAL offer, and
+the interval restarts for the next miss — so a badly-neglected project loses
+value in discrete cliffs, not a smooth slope, and never drops below
+`decay.floor` regardless of how many misses land. Both axes are tuned in
+`src/sim/config.ts`'s `decay` block and computed per-project at spawn:
+
+- `deadlineIntervalSeconds` scales with the job's own `work` — bigger jobs are
+  slower by nature, so they get a longer window per miss (`decay.baseIntervalSeconds`
+  + `decay.intervalPerWork * work`).
+- `penaltyFraction` scales with the job's `difficulty` — harder jobs punish a
+  miss harder (`decay.basePenaltyFraction` + `decay.penaltyPerDifficultyPip *
+  (difficulty - 1)`).
+
+These are deliberately two independent axes rather than one "big jobs punish
+harder" curve: a project can be small-and-brutal or large-and-forgiving
+depending on how difficulty landed on it, which is closer to what a real
+missed-deadline renegotiation feels like than a single dial would be.
+
+**Why the reversal:** requested directly — a continuous per-second bleed reads
+as ambient decay a player can't act against moment-to-moment; a deadline that
+holds flat until it's missed, then visibly steps, is legible the same way the
+clock and the credit bar already are, and gives "you are the bottleneck" a
+concrete cliff to race rather than a slope to slowly lose to. Still no new
+derived-number label on the card (handover §9) — the player sees the same raw
+dollar payout they always did, just moving in steps instead of a slide.
+
+**Not yet touched:** nothing in `src/render/` or `src/fx/` changed — the pod
+card already just displays whatever `p.payout` currently is, so the stepped
+value renders correctly with zero UI work. Whether a step deserves its own
+visual beat (a flash, a shake) when it lands is fx-layer work for step 7 and
+still open.
+
 ## 2026-08-16 — The crowding penalty gets a readout: hallucination rate
 
 **Adds to** the crowding-penalty decision below — this is the UI surface
