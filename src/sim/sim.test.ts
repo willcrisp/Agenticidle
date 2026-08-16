@@ -560,7 +560,8 @@ describe("reasoning trades tokens for accuracy, not speed", () => {
       setReasoning(s, 0, r);
       const a = s.agents[0]!;
       assignAgent(s, a.id, 0);
-      step(s, 3); // under starter runWork (6s): no resolution yet, just accrual
+      // Stay under starter runWork so nothing resolves — just measure accrual.
+      step(s, DEFAULT_CONFIG.classes.starter.runWork * 0.5);
       return a.progress;
     };
     // Reasoning no longer multiplies work-seconds — all three land identically.
@@ -575,7 +576,8 @@ describe("reasoning trades tokens for accuracy, not speed", () => {
       setReasoning(s, 0, r);
       assignAgent(s, s.agents[0]!.id, 0);
       const before = s.tokens;
-      step(s, 3);
+      // Stay under runWork so the agent burns continuously without resolving.
+      step(s, DEFAULT_CONFIG.classes.starter.runWork * 0.5);
       return before - s.tokens;
     };
     expect(burn("high")).toBeGreaterThan(burn("low"));

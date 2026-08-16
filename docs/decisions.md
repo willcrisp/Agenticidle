@@ -10,6 +10,30 @@ re-litigation, just implemented.
 
 ---
 
+## 2026-08-16 — Agents run fast and fail often, so the bottleneck finally binds
+
+**Adds to** the reasoning/debt batch below (same session, same playtest goal).
+
+The smoke harness has long carried a WARN — "the attention cap actually binds" —
+because peak retry demand sat around 0.85–1.7 clicks/s against a 2.5/s player, so
+the floor never outran your hands and "you are the bottleneck" wasn't true. Now
+that reasoning no longer speeds agents up, run cadence is set purely by `runWork`,
+which made this tunable directly.
+
+**New decision `[DECIDED]`:** `classes.*.runWork` is cut to `2 / 3 / 5`
+(starter/senior/elite) — agents cycle ~3× faster than the previous pass — and
+`oneShot` is dropped ~0.10 to `0.52 / 0.66 / 0.78`. Fast, failure-prone runs
+generate retries faster than a 2.5/s player can serve them: peak demand on the
+`balanced` line now averages **2.39 clicks/s**, and the smoke invariant flips
+from WARN to PASS. Reasoning effort is what buys the lost accuracy back, so the
+error-rate dial (the other half of this session's work) now has real weight —
+you run agents hot and cheap and eat the clicks, or think harder and pay tokens.
+
+Guardrails held: median score stays healthy (~64k), no single strategy runs away
+(best is 1.28× the runner-up, well under the 1.8× line), and investing still
+beats doing nothing. Re-tune in `tools/agent-idol-balance-harness.html`; nothing
+here is signed off, per `config.ts`'s preamble.
+
 ## 2026-08-16 — Reasoning buys accuracy not speed; debt is gone; a deadline countdown; class labels; number moves
 
 A batch of directly-requested changes. Grouped here because several touch the

@@ -190,9 +190,13 @@ export const DEFAULT_CONFIG: Config = {
   classes: {
     // label/chevrons are player-facing dressing (nobody's signed off the
     // names either); the "starter"/"senior"/"elite" keys are the stable API.
-    starter: { runWork: 6, oneShot: 0.62, burnMult: 1.0, label: "Haikuu", chevrons: 1 },
-    senior: { runWork: 9, oneShot: 0.76, burnMult: 1.3, label: "Sonneteer", chevrons: 2 },
-    elite: { runWork: 15, oneShot: 0.88, burnMult: 1.7, label: "Opulent", chevrons: 3 },
+    // runWork is deliberately short (agents cycle ~2x faster than the first
+    // pass) and oneShot deliberately lower: fast, failure-prone runs are what
+    // push peak retry demand past the player's hands, so "you are the
+    // bottleneck" actually binds. Reasoning effort buys the accuracy back.
+    starter: { runWork: 2, oneShot: 0.52, burnMult: 1.0, label: "Haikuu", chevrons: 1 },
+    senior: { runWork: 3, oneShot: 0.66, burnMult: 1.3, label: "Sonneteer", chevrons: 2 },
+    elite: { runWork: 5, oneShot: 0.78, burnMult: 1.7, label: "Opulent", chevrons: 3 },
   },
 
   sizes: {
