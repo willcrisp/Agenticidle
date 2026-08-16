@@ -195,11 +195,15 @@ export const balanced: Strategy = {
 
     keepCreditsTopped(s, api, harvest ? 20 : 70);
 
-    if (!harvest && s.t < s.cfg.runSeconds * 0.6) {
-      const spare = s.cash - 6000;
-      if (spare > s.cfg.classes.elite.cost) api.hire("elite");
-      else if (spare > s.cfg.classes.senior.cost) api.hire("senior");
-      else if (spare > s.cfg.classes.starter.cost && s.agents.length < 8) api.hire("starter");
+    // Hiring is free — the brake is crowding and burn, not cash. Build
+    // toward a moderate roster (2 elite, then senior, then fill with
+    // starters) rather than maxing the cap immediately.
+    if (!harvest && s.t < s.cfg.runSeconds * 0.6 && s.agents.length < 10) {
+      const elites = s.agents.filter((a) => a.cls === "elite").length;
+      const seniors = s.agents.filter((a) => a.cls === "senior").length;
+      if (elites < 2) api.hire("elite");
+      else if (seniors < 4) api.hire("senior");
+      else api.hire("starter");
     }
   },
 };
@@ -229,7 +233,10 @@ export const swarmer: Strategy = {
       if (s.pods[pod]) api.reason(pod, harvestMode(s) ? "high" : "high");
     }
     keepCreditsTopped(s, api, 60);
-    if (s.t < s.cfg.runSeconds * 0.5 && s.cash > s.cfg.classes.senior.cost + 8000) {
+    // A deliberately small roster: this strategy's whole plan is stacking
+    // everyone it has onto one bleeding contract, so the crowding penalty
+    // is the cost it's choosing to pay, not something to hire around.
+    if (s.t < s.cfg.runSeconds * 0.5 && s.agents.length < 6) {
       api.hire("senior");
     }
   },
@@ -251,7 +258,9 @@ export const eliteOnly: Strategy = {
       if (s.pods[pod]) api.reason(pod, harvestMode(s) ? "high" : "medium");
     }
     keepCreditsTopped(s, api, 80);
-    if (s.t < s.cfg.runSeconds * 0.7 && s.cash > s.cfg.classes.elite.cost + 5000) {
+    // Quality over coverage means few, expensive-to-run bodies spread thin —
+    // hiring more elites than there are pods just buys more crowding.
+    if (s.t < s.cfg.runSeconds * 0.7 && s.agents.length < s.pods.length + 2) {
       api.hire("elite");
     }
   },
@@ -273,7 +282,9 @@ export const swarmCheap: Strategy = {
       if (s.pods[pod]) api.reason(pod, harvestMode(s) ? "high" : "medium");
     }
     keepCreditsTopped(s, api, 70);
-    if (s.t < s.cfg.runSeconds * 0.7 && s.cash > s.cfg.classes.starter.cost + 4000) {
+    // Free hiring makes this the strategy it always wanted to be: coverage
+    // is limited only by the roster cap and how much crowding you can stand.
+    if (s.t < s.cfg.runSeconds * 0.7 && s.agents.length < 16) {
       api.hire("starter");
     }
   },

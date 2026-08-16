@@ -155,25 +155,16 @@ describe("agents", () => {
 });
 
 describe("hiring", () => {
-  it("adds an idle agent of the requested class and spends the cash", () => {
+  it("adds an idle agent of the requested class for free", () => {
     const s = createRun(DEFAULT_CONFIG, "hire");
-    s.cash = s.cfg.classes.elite.cost * 2;
+    s.cash = 0;
     const before = s.agents.length;
-    const cash = s.cash;
-    expect(hireAgent(s, "senior")).toBe(true);
+    expect(hireAgent(s, "elite")).toBe(true);
     expect(s.agents.length).toBe(before + 1);
     const hired = s.agents[s.agents.length - 1]!;
-    expect(hired.cls).toBe("senior");
+    expect(hired.cls).toBe("elite");
     expect(hired.state).toBe("idle");
-    expect(s.cash).toBe(cash - s.cfg.classes.senior.cost);
-  });
-
-  it("refuses when cash can't cover the class's cost", () => {
-    const s = createRun(DEFAULT_CONFIG, "hire-broke");
-    s.cash = s.cfg.classes.elite.cost - 1;
-    const before = s.agents.length;
-    expect(hireAgent(s, "elite")).toBe(false);
-    expect(s.agents.length).toBe(before);
+    expect(s.cash).toBe(0); // free — hiring never touches cash
   });
 
   it("refuses once the roster is at its cap", () => {
@@ -220,6 +211,39 @@ describe("no seats", () => {
     const burnMany = b2 - many.credits;
 
     expect(burnMany).toBeGreaterThan(burn1 * 1.5);
+  });
+
+  it("swarming a project also raises everyone's error rate on it", () => {
+    const solo = effectiveOneShot(DEFAULT_CONFIG, "starter", 1, 1);
+    const crowded = effectiveOneShot(DEFAULT_CONFIG, "starter", 1, 5);
+    expect(crowded).toBeLessThan(solo);
+  });
+
+  it("the crowding penalty stacks with the difficulty penalty and respects the same floor", () => {
+    const s = effectiveOneShot(DEFAULT_CONFIG, "starter", 5, 8);
+    expect(s).toBe(DEFAULT_CONFIG.difficulty.floor);
+  });
+
+  it("a second agent joining the pod can turn a guaranteed-green agent red", () => {
+    const cfg = cloneConfig(DEFAULT_CONFIG);
+    cfg.classes.starter.oneShot = 1;
+    cfg.difficulty.floor = 0;
+    cfg.difficulty.penaltyPerPip = 0;
+    cfg.crowding.penaltyPerExtraAgent = 1; // a second body on the pod guarantees red
+    const s = createRun(cfg, "blocked-crowds");
+    acceptProject(s, 0, 0);
+    const [a, b] = s.agents;
+
+    assignAgent(s, a!.id, 0);
+    step(s, cfg.classes.starter.runWork + 1);
+    expect(a!.state).toBe("running"); // alone on the pod: still guaranteed green
+    expect(s.pods[0]!.workDone).toBeGreaterThan(0);
+
+    // b joins — a hasn't done anything differently, but the pod is crowded now.
+    assignAgent(s, b!.id, 0);
+    step(s, cfg.classes.starter.runWork + 1);
+    expect(a!.state).toBe("blocked"); // same agent, same job — crowding did this
+    expect(b!.state).toBe("blocked");
   });
 });
 

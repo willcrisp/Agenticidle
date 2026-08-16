@@ -620,27 +620,21 @@ button {
   gap: 6px;
 }
 /* Same click vocabulary as BUY MORE, coloured in the currency it spends
-   toward: an agent. No seat count on the label — the pod desks already show
-   that nothing is capped. */
+   toward: an agent. Hiring is free — no price on the button, same as
+   BUY MORE shows none. What it costs you shows up later, in crowding and
+   credits, not at the door. */
 .hire-btn {
   font-family: var(--px);
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 0.04em;
-  padding: 6px 8px;
+  padding: 8px 10px;
   border: 1px solid var(--idle);
   color: var(--idle);
   background: #191813;
-  line-height: 1.6;
+  line-height: 1;
   cursor: pointer;
-  text-align: left;
 }
-.hire-cost {
-  display: block;
-  font-family: var(--mono);
-  font-size: 9px;
-  color: var(--fg-2);
-}
-/* Grey = ignore: not a live option right now (broke, or the roster is full).
+/* Grey = ignore: not a live option right now — the roster is full.
    Still clickable — a no-op, like any other invalid drop. */
 .hire-btn.is-unaffordable {
   border-color: var(--faint);
@@ -650,11 +644,21 @@ button {
   color: var(--faint);
 }
 
+/* Free hiring means the idle tray can hold far more than fits in one row —
+   it scrolls sideways rather than spilling into the board half or wrapping
+   into a layout the fixed-height tray was never built for. */
+.tray-idle {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 4px;
+}
+
 /* A `.station` sitting in the idle tray is restyled to the mockup's
    `.bcard` look. Scoped to the tray container, not an id on the station,
    since the station node is the same pooled node used in a pod. */
 .tray-idle .station {
   width: 88px;
+  flex: none;
   padding-bottom: 0;
   text-align: center;
   border: 1px solid var(--idle);

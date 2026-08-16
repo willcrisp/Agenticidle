@@ -233,15 +233,24 @@ export function emptyTelemetry(cfg: Config): Telemetry {
   };
 }
 
-/** Effective one-shot chance for this agent on this project. */
+/**
+ * Effective one-shot chance for this agent on this project. `podAgentCount`
+ * is how many agents (running or blocked) are stacked on the same pod right
+ * now, including this one — the crowding penalty applies to every agent
+ * beyond the first. Defaults to 1 (no crowding) for call sites that only
+ * care about the difficulty curve in isolation.
+ */
 export function effectiveOneShot(
   cfg: Config,
   cls: ClassName,
-  difficulty: number
+  difficulty: number,
+  podAgentCount = 1
 ): number {
   const base = cfg.classes[cls].oneShot;
-  const penalty = cfg.difficulty.penaltyPerPip * (difficulty - 1);
-  return Math.max(cfg.difficulty.floor, base - penalty);
+  const difficultyPenalty = cfg.difficulty.penaltyPerPip * (difficulty - 1);
+  const crowdingPenalty =
+    cfg.crowding.penaltyPerExtraAgent * Math.max(0, podAgentCount - 1);
+  return Math.max(cfg.difficulty.floor, base - difficultyPenalty - crowdingPenalty);
 }
 
 /** Current token price multiplier — falls with deliveries, not clock time. */
