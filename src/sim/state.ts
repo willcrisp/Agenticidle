@@ -184,11 +184,21 @@ export function escalationT(state: RunState): number {
   }
 }
 
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
 export function spawnProject(state: RunState): Project {
   const { cfg, rng } = state;
-  const size = rng.weighted(cfg.sizeWeights);
-  const sc = cfg.sizes[size];
   const k = escalationT(state);
+  const sizeWeights: Record<SizeName, number> = {
+    small: lerp(cfg.sizeWeightsStart.small, cfg.sizeWeightsEnd.small, k),
+    medium: lerp(cfg.sizeWeightsStart.medium, cfg.sizeWeightsEnd.medium, k),
+    large: lerp(cfg.sizeWeightsStart.large, cfg.sizeWeightsEnd.large, k),
+    huge: lerp(cfg.sizeWeightsStart.huge, cfg.sizeWeightsEnd.huge, k),
+  };
+  const size = rng.weighted(sizeWeights);
+  const sc = cfg.sizes[size];
 
   const payoutMult = 1 + (cfg.escalation.payoutEndMult - 1) * k;
   const diffTarget =
