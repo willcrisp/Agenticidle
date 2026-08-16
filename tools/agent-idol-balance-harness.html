@@ -170,12 +170,16 @@ canvas{display:block;width:100%;image-rendering:auto}
       elite: { runWork: 15, oneShot: 0.88, burnMult: 1.7 }
     },
     sizes: {
-      small: { work: 50, payoutPerWork: 22 },
-      medium: { work: 100, payoutPerWork: 26 },
-      large: { work: 200, payoutPerWork: 30 },
-      huge: { work: 400, payoutPerWork: 34 }
+      small: { work: 50, payoutPerWork: 11 },
+      medium: { work: 100, payoutPerWork: 13 },
+      large: { work: 200, payoutPerWork: 15 },
+      huge: { work: 400, payoutPerWork: 17 }
     },
-    sizeWeights: { small: 3, medium: 4, large: 2, huge: 1 },
+    // At k=0 the board is almost entirely small/medium (a seeded run's first
+    // jobs should read as $500-1000, not a huge-sized payday). Large and huge
+    // phase in as escalation climbs, reaching the old flat distribution by k=1.
+    sizeWeightsStart: { small: 8, medium: 3, large: 0, huge: 0 },
+    sizeWeightsEnd: { small: 3, medium: 4, large: 2, huge: 1 },
     difficulty: { penaltyPerPip: 0.09, floor: 0.15 },
     crowding: { penaltyPerExtraAgent: 0.04 },
     hallucination: { tierThresholds: [0.25, 0.4, 0.55, 0.7] },
@@ -365,11 +369,20 @@ canvas{display:block;width:100%;image-rendering:auto}
         return raw;
     }
   }
+  function lerp(a, b, t) {
+    return a + (b - a) * t;
+  }
   function spawnProject(state) {
     const { cfg, rng } = state;
-    const size = rng.weighted(cfg.sizeWeights);
-    const sc = cfg.sizes[size];
     const k = escalationT(state);
+    const sizeWeights = {
+      small: lerp(cfg.sizeWeightsStart.small, cfg.sizeWeightsEnd.small, k),
+      medium: lerp(cfg.sizeWeightsStart.medium, cfg.sizeWeightsEnd.medium, k),
+      large: lerp(cfg.sizeWeightsStart.large, cfg.sizeWeightsEnd.large, k),
+      huge: lerp(cfg.sizeWeightsStart.huge, cfg.sizeWeightsEnd.huge, k)
+    };
+    const size = rng.weighted(sizeWeights);
+    const sc = cfg.sizes[size];
     const payoutMult = 1 + (cfg.escalation.payoutEndMult - 1) * k;
     const diffTarget = cfg.escalation.difficultyStart + (cfg.escalation.difficultyEnd - cfg.escalation.difficultyStart) * k;
     const difficulty = Math.max(

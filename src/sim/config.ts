@@ -43,8 +43,16 @@ export interface Config {
 
   classes: Record<ClassName, AgentClassConfig>;
   sizes: Record<SizeName, SizeConfig>;
-  /** Relative frequency of each size appearing on the board. */
-  sizeWeights: Record<SizeName, number>;
+  /**
+   * Relative frequency of each size appearing on the board, at the very
+   * start of the run (k=0) and at full escalation (k=1). Interpolated by
+   * the same escalation curve as payout and difficulty, so the board
+   * starts small-job-heavy and only starts offering large/huge work once
+   * escalation has actually moved — a seeded run shouldn't be able to
+   * open on a huge-payout job.
+   */
+  sizeWeightsStart: Record<SizeName, number>;
+  sizeWeightsEnd: Record<SizeName, number>;
 
   difficulty: {
     /** One-shot penalty per pip above 1. Subtractive. */
@@ -155,12 +163,16 @@ export const DEFAULT_CONFIG: Config = {
   },
 
   sizes: {
-    small: { work: 50, payoutPerWork: 22 },
-    medium: { work: 100, payoutPerWork: 26 },
-    large: { work: 200, payoutPerWork: 30 },
-    huge: { work: 400, payoutPerWork: 34 },
+    small: { work: 50, payoutPerWork: 11 },
+    medium: { work: 100, payoutPerWork: 13 },
+    large: { work: 200, payoutPerWork: 15 },
+    huge: { work: 400, payoutPerWork: 17 },
   },
-  sizeWeights: { small: 3, medium: 4, large: 2, huge: 1 },
+  // At k=0 the board is almost entirely small/medium (a seeded run's first
+  // jobs should read as $500-1000, not a huge-sized payday). Large and huge
+  // phase in as escalation climbs, reaching the old flat distribution by k=1.
+  sizeWeightsStart: { small: 8, medium: 3, large: 0, huge: 0 },
+  sizeWeightsEnd: { small: 3, medium: 4, large: 2, huge: 1 },
 
   difficulty: { penaltyPerPip: 0.09, floor: 0.15 },
 
