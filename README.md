@@ -38,13 +38,22 @@ That is the entire input. Concretely, to get a run going:
 
 1. **Drag a project card** from `PROJECTS AVAILABLE` into any empty pod.
 2. **Drag an idle agent** from `DOING NOTHING` onto that pod's desks. It starts
-   working immediately. Pile on as many as you like — there are no seats.
+   working immediately. Pile on as many as you like — there's no seat limit —
+   but every extra body on the same pod lowers everyone there's one-shot
+   chance, on top of burning that many more credits. Swarming still works;
+   it just isn't free. Watch `HALLUCINATION` on the pod card climb from
+   `LOW` toward `EXTREME` as you crowd it — that's your early warning for how
+   much clicking a pod is about to demand.
 3. When an agent gets stuck it turns red and asks something idiotic. **Click
    it.** It retries from zero, so the time it already spent is gone.
-4. Payouts **tick down every second** you take. The reasoning dial (`LOW`/
+4. **Hire more agents** with `+STARTER` / `+SENIOR` / `+ELITE` next to
+   `DOING NOTHING`. Hiring is free — the cost of a bigger fleet shows up on
+   the floor, not at the door. Higher tiers one-shot more reliably and clear
+   more work per run, at a steeper credit burn.
+5. Payouts **tick down every second** you take. The reasoning dial (`LOW`/
    `MEDIUM`/`HIGH`) trades credits for speed.
-5. Credits are your fuel. At zero, everyone stops dead while the payout keeps
-   falling. `BUY MORE` is a placeholder until the shop lands.
+6. Credits are your fuel. At zero, everyone stops dead while the payout keeps
+   falling. `BUY MORE` is a placeholder until the shop's block-picker lands.
 
 `Esc` or the topbar button pauses. Blurring the window auto-pauses; an `Esc`
 pause does not un-pause itself when you click back in.
@@ -165,8 +174,8 @@ AI.assignAgent(AI.state, AI.state.agents[0].id, 0)   // drive it like a player
 ```
 
 Every mutation goes through an action in `src/sim/tick.ts` — `retryAgent`,
-`assignAgent`, `acceptProject`, `setReasoning`, `buyCreditBlock`. Nothing else is
-allowed to write to the run.
+`assignAgent`, `acceptProject`, `setReasoning`, `buyCreditBlock`, `hireAgent`.
+Nothing else is allowed to write to the run.
 
 ### Tune it
 
@@ -225,11 +234,13 @@ Steps 1–4 and 6 are done and the game is playable end to end: the sim core and
 balance harness, the floor bound to live state, the fixed-timestep loop, and
 the two gestures.
 
-Not started: **step 5** the shop and economy, **7** the anime.js juice pass,
-**8** the run summary, **9** audio and the tutorial ramp.
+Not started: the rest of **step 5** (the credit block-picker and per-agent
+upgrades), **7** the anime.js juice pass, **8** the run summary, **9** audio
+and the tutorial ramp.
 
-Step 5 is the natural next one — `buyCreditBlock` and `hireAgent` already exist
-in the sim, and `BUY MORE` is currently a stub wired to the cheapest block.
+Hiring is wired: `+STARTER` / `+SENIOR` / `+ELITE` call `hireAgent` directly,
+free of charge (see `docs/decisions.md`). `BUY MORE` is still a stub wired to
+the cheapest credit block — the real block-picker is what's left of step 5.
 
 ## Open questions
 
@@ -250,6 +261,10 @@ These need playtesting, not argument. They are real and currently unresolved:
    the harness needed it. Adding one would be a third gesture, which the design
    forbids — so it stays unwired until the floor demonstrably feels stuck
    without it.
+6. **Does the class ladder still hold now that hiring is free?** Elite is no
+   longer more expensive to *acquire*, only to *run* and to crowd a pod with.
+   See `docs/decisions.md` for the full note — not fixed in code, needs
+   playtesting against `tools/agent-idol-balance-harness.html`.
 
 ## The bar
 
@@ -258,5 +273,7 @@ that need explaining. An invisible rule the player has to be taught is a design
 failure, not a feature.
 
 `CLAUDE.md` has the full house rules. `docs/agentidolhandoverv2.pdf` is the
-design state of record and wins any conflict; `docs/archive/` holds the
-planning documents the finished steps were built from.
+design state of record and wins any conflict, except where `docs/decisions.md`
+has since amended it — that file is newer and wins over the PDF where the two
+disagree. `docs/archive/` holds the planning documents the finished steps
+were built from.

@@ -23,7 +23,11 @@ export function acceptProject(s: RunState, boardIndex: number, pod: number): boo
   return true;
 }
 
-/** Drag an idle agent onto a pod. No seat limit — they just crowd in. */
+/**
+ * Drag an idle agent onto a pod. No seat limit — they just crowd in, and
+ * each extra body on the same pod lowers everyone there's one-shot chance
+ * (see `effectiveOneShot`'s crowding penalty).
+ */
 export function assignAgent(s: RunState, agentId: number, pod: number): boolean {
   const a = s.agents.find((x) => x.id === agentId);
   if (!a || a.state !== "idle" || !s.pods[pod]) return false;
@@ -78,12 +82,15 @@ export function buyCreditBlock(s: RunState, blockIndex: number): boolean {
   return true;
 }
 
+/**
+ * Hiring is free. Agents are free to spawn — the cost of a bigger fleet is
+ * paid on the floor, not at the register: every agent burns its own credits
+ * once it's running, and stacking more of them on one project drives that
+ * project's crowding penalty (see `effectiveOneShot`). The only gate here is
+ * the roster cap.
+ */
 export function hireAgent(s: RunState, cls: ClassName): boolean {
   if (s.agents.length >= s.cfg.maxRoster) return false;
-  const cost = s.cfg.classes[cls].cost;
-  if (s.cash < cost) return false;
-  s.cash -= cost;
-  s.telemetry.moneySpentOnAgents += cost;
   s.agents.push(makeAgent(cls, s.rng));
   s.telemetry.peakRoster = Math.max(s.telemetry.peakRoster, s.agents.length);
   return true;
@@ -153,6 +160,14 @@ export function tick(s: RunState, dtSeconds: number): void {
   }
 
   // --- agent runs -----------------------------------------------------------
+  // Pod occupancy, counted once per tick: how many agents (running or
+  // blocked — anyone still parked there) are stacked on each pod right now.
+  // Feeds the crowding penalty below. Idle agents don't occupy a pod.
+  const podOccupancy = new Array<number>(s.pods.length).fill(0);
+  for (const a of s.agents) {
+    if (a.pod !== null) podOccupancy[a.pod] = (podOccupancy[a.pod] ?? 0) + 1;
+  }
+
   for (const a of s.agents) {
     if (a.state === "blocked") {
       a.blockedTime += dtSeconds;
@@ -175,7 +190,7 @@ export function tick(s: RunState, dtSeconds: number): void {
 
     // Run resolves.
     a.progress = 0;
-    const chance = effectiveOneShot(cfg, a.cls, p.difficulty);
+    const chance = effectiveOneShot(cfg, a.cls, p.difficulty, podOccupancy[a.pod] ?? 1);
     if (s.rng.chance(chance)) {
       let delivered = runWork;
       const remaining = p.work - p.workDone;

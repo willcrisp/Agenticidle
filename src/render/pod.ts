@@ -2,6 +2,7 @@
 // reasoning dial. Pure — reads state, writes DOM, never mutates state.
 
 import type { Project, RunState } from "../sim/state";
+import { HALLUCINATION_TIERS, hallucinationTierIndex, podFailRate } from "../sim/state";
 import type { PodRefs, Refs } from "./shell";
 
 const REASONING_ORDER: readonly Project["reasoning"][] = ["low", "medium", "high"];
@@ -10,6 +11,7 @@ interface PodMemo {
   projectId: number | null;
   name: string | null;
   payout: number | null;
+  halluTier: number | null; // -1 for the "—" no-agents state
 }
 
 const memos: PodMemo[] = [];
@@ -17,7 +19,7 @@ const memos: PodMemo[] = [];
 function memoFor(i: number): PodMemo {
   const existing = memos[i];
   if (existing) return existing;
-  const created: PodMemo = { projectId: null, name: null, payout: null };
+  const created: PodMemo = { projectId: null, name: null, payout: null, halluTier: null };
   memos[i] = created;
   return created;
 }
@@ -63,6 +65,20 @@ function renderSegments(podRefs: PodRefs, memo: PodMemo, p: Project): void {
   }
 }
 
+function renderHallucination(podRefs: PodRefs, memo: PodMemo, state: RunState, index: number): void {
+  const failRate = podFailRate(state, index);
+  // -1 stands in for "no agents on the pod yet" — there's nothing to rate.
+  const tier = failRate === null ? -1 : hallucinationTierIndex(state.cfg, failRate);
+  if (memo.halluTier === tier) return;
+  memo.halluTier = tier;
+
+  const label = tier === -1 ? "—" : HALLUCINATION_TIERS[tier];
+  podRefs.halluValue.textContent = label ?? "—";
+  for (let i = 0; i < HALLUCINATION_TIERS.length; i++) {
+    podRefs.halluValue.classList.toggle("tier-" + i, i === tier);
+  }
+}
+
 export function renderPod(state: RunState, refs: Refs, index: number): void {
   const podRefs = refs.pods[index];
   if (!podRefs) return;
@@ -79,6 +95,7 @@ export function renderPod(state: RunState, refs: Refs, index: number): void {
       memo.projectId = null;
       memo.name = null;
       memo.payout = null;
+      memo.halluTier = null;
     }
     return;
   }
@@ -97,4 +114,5 @@ export function renderPod(state: RunState, refs: Refs, index: number): void {
   renderPips(podRefs.pips, p.difficulty);
   renderReasoning(podRefs.reasoning, p.reasoning);
   renderSegments(podRefs, memo, p);
+  renderHallucination(podRefs, memo, state, index);
 }

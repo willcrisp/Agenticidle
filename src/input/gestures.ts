@@ -21,13 +21,16 @@
 
 import type { RunState } from "../sim/state";
 import type { Refs } from "../render/shell";
+import { HIRE_CLASSES } from "../render/shell";
 import { stageScale } from "../render/stage";
+import type { ClassName } from "../sim/config";
 import {
   retryAgent,
   assignAgent,
   acceptProject,
   setReasoning,
   buyCreditBlock,
+  hireAgent,
 } from "../sim/tick";
 
 const DRAG_THRESHOLD_PX = 4;
@@ -256,6 +259,19 @@ export function mountGestures(state: RunState, refs: Refs): () => void {
     buyCreditBlock(state, 0);
   }
 
+  // Hiring is a plain click, same vocabulary as BUY MORE: it isn't one of the
+  // two floor gestures (nothing is dragged, nothing blocked is retried), it's
+  // chrome around the economy, styled in the currency it deals in — agents.
+  const hireHandlers = refs.hireButtons.map((btn, i) => {
+    const cls = HIRE_CLASSES[i] as ClassName | undefined;
+    const handler = (): void => {
+      if (!cls) return;
+      hireAgent(state, cls);
+    };
+    btn.addEventListener("pointerdown", handler);
+    return { btn, handler };
+  });
+
   refs.game.addEventListener("pointerdown", onPointerDown);
   refs.game.addEventListener("keydown", onKeyDown);
   refs.buyBtn.addEventListener("pointerdown", onBuyPointerDown);
@@ -264,6 +280,9 @@ export function mountGestures(state: RunState, refs: Refs): () => void {
     refs.game.removeEventListener("pointerdown", onPointerDown);
     refs.game.removeEventListener("keydown", onKeyDown);
     refs.buyBtn.removeEventListener("pointerdown", onBuyPointerDown);
+    for (const { btn, handler } of hireHandlers) {
+      btn.removeEventListener("pointerdown", handler);
+    }
     if (activeDrag) {
       endDragListeners(activeDrag.el);
       settle(activeDrag);

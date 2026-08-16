@@ -1,12 +1,21 @@
 import { describe, it, expect } from "vitest";
 import { DEFAULT_CONFIG, cloneConfig } from "./config";
-import { createRun, effectiveOneShot, tokenPriceMult, spawnProject } from "./state";
+import {
+  createRun,
+  effectiveOneShot,
+  tokenPriceMult,
+  spawnProject,
+  hallucinationTierIndex,
+  podFailRate,
+  HALLUCINATION_TIERS,
+} from "./state";
 import {
   tick,
   acceptProject,
   assignAgent,
   retryAgent,
   benchAgent,
+  hireAgent,
   finalise,
 } from "./tick";
 import { simulateRun } from "../harness/run";
@@ -153,6 +162,39 @@ describe("agents", () => {
   });
 });
 
+describe("hiring", () => {
+  it("adds an idle agent of the requested class for free", () => {
+    const s = createRun(DEFAULT_CONFIG, "hire");
+    s.cash = 0;
+    const before = s.agents.length;
+    expect(hireAgent(s, "elite")).toBe(true);
+    expect(s.agents.length).toBe(before + 1);
+    const hired = s.agents[s.agents.length - 1]!;
+    expect(hired.cls).toBe("elite");
+    expect(hired.state).toBe("idle");
+    expect(s.cash).toBe(0); // free — hiring never touches cash
+  });
+
+  it("refuses once the roster is at its cap", () => {
+    const cfg = cloneConfig(DEFAULT_CONFIG);
+    cfg.maxRoster = cfg.startingRoster.length;
+    cfg.startingCash = 1_000_000;
+    const s = createRun(cfg, "hire-full");
+    expect(hireAgent(s, "starter")).toBe(false);
+    expect(s.agents.length).toBe(cfg.startingRoster.length);
+  });
+
+  it("a hired agent can join a swarm already on a project, same as any other", () => {
+    const s = createRun(DEFAULT_CONFIG, "hire-swarm");
+    acceptProject(s, 0, 0);
+    for (const a of s.agents) assignAgent(s, a.id, 0);
+    hireAgent(s, "starter");
+    const hired = s.agents[s.agents.length - 1]!;
+    expect(assignAgent(s, hired.id, 0)).toBe(true);
+    expect(s.agents.filter((a) => a.pod === 0).length).toBe(s.agents.length);
+  });
+});
+
 describe("no seats", () => {
   it("any number of agents can pile onto one project", () => {
     const s = createRun(DEFAULT_CONFIG, "swarm");
@@ -177,6 +219,87 @@ describe("no seats", () => {
     const burnMany = b2 - many.credits;
 
     expect(burnMany).toBeGreaterThan(burn1 * 1.5);
+  });
+
+  it("swarming a project also raises everyone's error rate on it", () => {
+    const solo = effectiveOneShot(DEFAULT_CONFIG, "starter", 1, 1);
+    const crowded = effectiveOneShot(DEFAULT_CONFIG, "starter", 1, 5);
+    expect(crowded).toBeLessThan(solo);
+  });
+
+  it("the crowding penalty stacks with the difficulty penalty and respects the same floor", () => {
+    const s = effectiveOneShot(DEFAULT_CONFIG, "starter", 5, 8);
+    expect(s).toBe(DEFAULT_CONFIG.difficulty.floor);
+  });
+
+  it("a second agent joining the pod can turn a guaranteed-green agent red", () => {
+    const cfg = cloneConfig(DEFAULT_CONFIG);
+    cfg.classes.starter.oneShot = 1;
+    cfg.difficulty.floor = 0;
+    cfg.difficulty.penaltyPerPip = 0;
+    cfg.crowding.penaltyPerExtraAgent = 1; // a second body on the pod guarantees red
+    const s = createRun(cfg, "blocked-crowds");
+    acceptProject(s, 0, 0);
+    const [a, b] = s.agents;
+
+    assignAgent(s, a!.id, 0);
+    step(s, cfg.classes.starter.runWork + 1);
+    expect(a!.state).toBe("running"); // alone on the pod: still guaranteed green
+    expect(s.pods[0]!.workDone).toBeGreaterThan(0);
+
+    // b joins — a hasn't done anything differently, but the pod is crowded now.
+    assignAgent(s, b!.id, 0);
+    step(s, cfg.classes.starter.runWork + 1);
+    expect(a!.state).toBe("blocked"); // same agent, same job — crowding did this
+    expect(b!.state).toBe("blocked");
+  });
+});
+
+describe("hallucination rate", () => {
+  it("has no reading on a pod nobody's been assigned to yet", () => {
+    const s = createRun(DEFAULT_CONFIG, "hallu-empty");
+    acceptProject(s, 0, 0);
+    expect(podFailRate(s, 0)).toBeNull();
+  });
+
+  it("climbs as more agents pile onto the same pod", () => {
+    const s = createRun(DEFAULT_CONFIG, "hallu-climb");
+    acceptProject(s, 0, 0);
+    assignAgent(s, s.agents[0]!.id, 0);
+    const solo = podFailRate(s, 0)!;
+
+    for (const a of s.agents.slice(1)) assignAgent(s, a.id, 0);
+    const crowded = podFailRate(s, 0)!;
+
+    expect(crowded).toBeGreaterThan(solo);
+  });
+
+  it("buckets a fail rate into LOW..EXTREME using the configured thresholds", () => {
+    const cfg = cloneConfig(DEFAULT_CONFIG);
+    cfg.hallucination.tierThresholds = [0.25, 0.4, 0.55, 0.7];
+    expect(HALLUCINATION_TIERS[hallucinationTierIndex(cfg, 0)]).toBe("LOW");
+    expect(HALLUCINATION_TIERS[hallucinationTierIndex(cfg, 0.24)]).toBe("LOW");
+    expect(HALLUCINATION_TIERS[hallucinationTierIndex(cfg, 0.25)]).toBe("MEDIUM");
+    expect(HALLUCINATION_TIERS[hallucinationTierIndex(cfg, 0.4)]).toBe("HIGH");
+    expect(HALLUCINATION_TIERS[hallucinationTierIndex(cfg, 0.55)]).toBe("VERY HIGH");
+    expect(HALLUCINATION_TIERS[hallucinationTierIndex(cfg, 0.7)]).toBe("EXTREME");
+    expect(HALLUCINATION_TIERS[hallucinationTierIndex(cfg, 1)]).toBe("EXTREME");
+  });
+
+  it("averages across mixed classes on the same pod, not just the newest arrival", () => {
+    const cfg = cloneConfig(DEFAULT_CONFIG);
+    cfg.difficulty.penaltyPerPip = 0;
+    const s = createRun(cfg, "hallu-mixed"); // default roster: starter, starter, senior
+    acceptProject(s, 0, 0);
+    const senior = s.agents.find((a) => a.cls === "senior")!;
+    const starter = s.agents.find((a) => a.cls === "starter")!;
+    assignAgent(s, senior.id, 0);
+    assignAgent(s, starter.id, 0);
+
+    const rate = podFailRate(s, 0)!;
+    const seniorFail = 1 - effectiveOneShot(cfg, "senior", 1, 2);
+    const starterFail = 1 - effectiveOneShot(cfg, "starter", 1, 2);
+    expect(rate).toBeCloseTo((seniorFail + starterFail) / 2, 10);
   });
 });
 

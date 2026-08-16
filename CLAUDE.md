@@ -7,6 +7,10 @@ pixel-sprite art. One number at the end.
 ## Read before proposing anything
 
 - `docs/agentidolhandoverv2.pdf` — full design state. **This document wins.**
+- `docs/decisions.md` — amendments made after the handover, where it reverses
+  or fills a gap in the PDF above. The PDF is static and can't be edited in
+  place; where the two disagree, **the decisions log wins — it's newer.**
+  Check it before assuming the PDF's `[DECIDED]` list is still current.
 - `docs/agentidoltechstack.pdf` — architecture, build order, what not to use.
 - `docs/agent-idol-v9.html` — visual reference of record. Promote this shell,
   don't rebuild it. Note it predates the run clock, so it has no timer.
@@ -19,7 +23,8 @@ current answer, not a commitment; OPEN items need playtesting, not argument.
 
 There is a `§12 Explicitly rejected` list. Do not re-propose anything on it.
 If you think something on it deserves another look, say so once, in one
-sentence, and move on.
+sentence, and move on. (One entry on it — a crowding penalty on swarms — has
+since been overturned; see `docs/decisions.md`. The rest still stands.)
 
 ## Architecture — the one rule
 

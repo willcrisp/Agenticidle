@@ -4,7 +4,7 @@ import { DEFAULT_CONFIG } from "./sim/config";
 import { mountStage } from "./render/stage";
 import { buildShell } from "./render/shell";
 import { render } from "./render/floor";
-import { tick, acceptProject, assignAgent, retryAgent } from "./sim/tick";
+import { tick, acceptProject, assignAgent, retryAgent, hireAgent } from "./sim/tick";
 import { mountGestures, syncFocusability } from "./input/gestures";
 import { SaveManager } from "./save/store";
 import { recordRun } from "./save/schema";
@@ -249,6 +249,7 @@ refs.pauseBtn.addEventListener("pointerdown", () => {
   acceptProject,
   assignAgent,
   retryAgent,
+  hireAgent,
   get paused() {
     return paused;
   },

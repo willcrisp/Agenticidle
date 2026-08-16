@@ -153,15 +153,12 @@ const LEVERS = [
   ["Agents", [
     ["classes.starter.runWork","Starter run length",2,30,1,v=>v+"s","Work-seconds per run. Also the size of the slice it lands."],
     ["classes.starter.oneShot","Starter one-shot",0.2,1,0.01,pct,null],
-    ["classes.starter.cost","Starter cost",200,20000,100,money,null],
     ["classes.senior.runWork","Senior run length",2,40,1,v=>v+"s",null],
     ["classes.senior.oneShot","Senior one-shot",0.2,1,0.01,pct,null],
-    ["classes.senior.cost","Senior cost",500,40000,250,money,null],
     ["classes.elite.runWork","Elite run length",2,60,1,v=>v+"s",null],
     ["classes.elite.oneShot","Elite one-shot",0.2,1,0.01,pct,null],
-    ["classes.elite.cost","Elite cost",1000,80000,500,money,"If elites never pay back, cheap coverage wins and the class ladder is dead."],
     ["classes.senior.burnMult","Senior burn ×",0.5,3,0.05,v=>v.toFixed(2)+"×",null],
-    ["classes.elite.burnMult","Elite burn ×",0.5,3,0.05,v=>v.toFixed(2)+"×","Whether good agents also cost more to run changes the coverage lever entirely."],
+    ["classes.elite.burnMult","Elite burn ×",0.5,3,0.05,v=>v.toFixed(2)+"×","Hiring is free — burn rate and crowding are the whole class ladder now."],
   ]],
   ["Projects", [
     ["sizes.small.work","Small job work",10,200,5,v=>v+"s",null],
@@ -174,6 +171,11 @@ const LEVERS = [
     ["sizes.huge.payoutPerWork","Huge $ per work",1,80,1,v=>"$"+v,null],
     ["difficulty.penaltyPerPip","Difficulty penalty / pip",0,0.22,0.005,pct,"Subtracted from one-shot per pip above 1. This is what makes quality matter separately from count."],
     ["difficulty.floor","One-shot floor",0.02,0.5,0.01,pct,null],
+    ["crowding.penaltyPerExtraAgent","Crowding penalty / extra agent",0,0.2,0.005,pct,"Subtracted from one-shot per agent stacked on a pod beyond the first, on top of the difficulty penalty. The brake on free hiring — swarming still works, but every extra body makes everyone on the pod worse."],
+    ["hallucination.tierThresholds.0","Hallucination: LOW→MEDIUM at",0.05,0.5,0.01,pct,"Fail-rate band edges for the HALLUCINATION readout on the pod card. Below this, it reads LOW."],
+    ["hallucination.tierThresholds.1","Hallucination: MEDIUM→HIGH at",0.1,0.7,0.01,pct,null],
+    ["hallucination.tierThresholds.2","Hallucination: HIGH→VERY HIGH at",0.2,0.85,0.01,pct,null],
+    ["hallucination.tierThresholds.3","Hallucination: VERY HIGH→EXTREME at",0.3,0.95,0.01,pct,"Above this, it reads EXTREME. Keep all four ascending or the bands stop making sense."],
   ]],
   ["Decay", [
     ["decay.perSecond","Decay per second",0.0002,0.02,0.0002,v=>(v*100).toFixed(2)+"%","Fraction of the original offer lost every second once accepted."],
@@ -214,7 +216,7 @@ const RULES = [
 const FLAGS = [
   ["credits.blockedAgentsBurn","Blocked agents keep burning credits","Undecided in the handover. If off, ignoring a red agent costs only opportunity."],
   ["failedRunsCostCredits","Failed runs still cost their credits",null],
-  ["discardOverflow","Discard slice overflow past 100%","Turning this on is a de facto crowding penalty on swarms — which §5 rejected."],
+  ["discardOverflow","Discard slice overflow past 100%","A second, throughput-side crowding cost on top of crowding.penaltyPerExtraAgent's one-shot penalty. Stacking both may be too much brake at once — watch for it."],
 ];
 
 let player = { cps: 2.5, reaction: 0.35 };
@@ -401,7 +403,7 @@ function diagnose(rows, cfg){
   const control = rows.find(r=>r.strategy.indexOf("control")>=0);
   const investors = rows.filter(r=>r!==control);
   if(control && investors.every(r=>r.median<=control.median))
-    out.push(["bad","INVESTMENT DOESN'T PAY","Doing nothing beats every strategy that hires. Agents cost more than they return — lower costs or raise payouts."]);
+    out.push(["bad","INVESTMENT DOESN'T PAY","Doing nothing beats every strategy that hires. Hiring is free, so the cost is all in crowding and credit burn — ease those, or raise payouts."]);
 
   const gap = best.median / Math.max(1, [...rows].sort((x,y)=>y.median-x.median)[1].median);
   if(gap>1.8)

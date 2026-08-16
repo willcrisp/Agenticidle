@@ -14,10 +14,8 @@ export type Reasoning = "low" | "medium" | "high";
 export interface AgentClassConfig {
   /** Work-seconds delivered by one successful run. Also sets slice size. */
   runWork: number;
-  /** Base chance a run resolves green, before difficulty. 0..1 */
+  /** Base chance a run resolves green, before difficulty and crowding. 0..1 */
   oneShot: number;
-  /** Hire cost, mid-run. */
-  cost: number;
   /** Multiplier on credit burn while running. 1 = baseline. */
   burnMult: number;
 }
@@ -53,6 +51,28 @@ export interface Config {
     penaltyPerPip: number;
     /** One-shot can never fall below this. */
     floor: number;
+  };
+
+  crowding: {
+    /**
+     * One-shot penalty per agent stacked on a project beyond the first.
+     * Subtractive, same shape as the difficulty penalty, and stacks with it.
+     * Hiring is free — this, plus each extra agent's own credit burn, is the
+     * whole brake on swarming. No seat limit; a bad idea just gets worse the
+     * harder you lean on it.
+     */
+    penaltyPerExtraAgent: number;
+  };
+
+  hallucination: {
+    /**
+     * The fail-rate readout on a project card, labelled LOW / MEDIUM / HIGH /
+     * VERY HIGH / EXTREME. Four ascending thresholds (0..1) carve the five
+     * bands — a fail rate below the first threshold reads LOW, at or above
+     * the last reads EXTREME. This is what makes crowding legible without a
+     * number: the player sees the label climb as they pile agents on.
+     */
+    tierThresholds: [number, number, number, number];
   };
 
   decay: {
@@ -129,9 +149,9 @@ export const DEFAULT_CONFIG: Config = {
   boardRefillSeconds: 4,
 
   classes: {
-    starter: { runWork: 6, oneShot: 0.62, cost: 2200, burnMult: 1.0 },
-    senior: { runWork: 9, oneShot: 0.76, cost: 6500, burnMult: 1.3 },
-    elite: { runWork: 15, oneShot: 0.88, cost: 17000, burnMult: 1.7 },
+    starter: { runWork: 6, oneShot: 0.62, burnMult: 1.0 },
+    senior: { runWork: 9, oneShot: 0.76, burnMult: 1.3 },
+    elite: { runWork: 15, oneShot: 0.88, burnMult: 1.7 },
   },
 
   sizes: {
@@ -143,6 +163,10 @@ export const DEFAULT_CONFIG: Config = {
   sizeWeights: { small: 3, medium: 4, large: 2, huge: 1 },
 
   difficulty: { penaltyPerPip: 0.09, floor: 0.15 },
+
+  crowding: { penaltyPerExtraAgent: 0.04 },
+
+  hallucination: { tierThresholds: [0.25, 0.4, 0.55, 0.7] },
 
   decay: { perSecond: 0.0022, floor: 0.12, sizeDamping: 0.35 },
 
