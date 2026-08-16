@@ -12,13 +12,16 @@
     "typecheck": "tsc --noEmit",
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start": "node server/index.js",
+    "serve": "npm run build && node server/index.js"
   },
   "dependencies": {
     "@fontsource/inter": "^5.0.0",
     "@fontsource/jetbrains-mono": "^5.0.0",
     "@fontsource/silkscreen": "^5.0.0",
-    "animejs": "^4.0.0"
+    "animejs": "^4.0.0",
+    "pg": "^8.13.0"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
