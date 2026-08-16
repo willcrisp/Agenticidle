@@ -37,6 +37,16 @@ export interface Project {
   reasoning: Reasoning;
   /** Sim-time this was accepted onto the floor. */
   acceptedAt: number;
+
+  /** Seconds of grace before a missed-deadline penalty lands; renews after each one. */
+  deadlineIntervalSeconds: number;
+  /** Fraction of ORIGINAL payout lost at each missed deadline. */
+  penaltyFraction: number;
+  /**
+   * Sim-time of the next penalty cliff. Infinity while the card is still on
+   * the board — the clock only starts once it's accepted onto a pod.
+   */
+  nextPenaltyAt: number;
 }
 
 export interface RunState {
@@ -227,6 +237,10 @@ export function spawnProject(state: RunState): Project {
     slices: [],
     reasoning: "medium",
     acceptedAt: 0,
+    deadlineIntervalSeconds: cfg.decay.baseIntervalSeconds + cfg.decay.intervalPerWork * sc.work,
+    penaltyFraction:
+      cfg.decay.basePenaltyFraction + cfg.decay.penaltyPerDifficultyPip * (difficulty - 1),
+    nextPenaltyAt: Infinity,
   };
 }
 

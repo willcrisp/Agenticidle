@@ -18,6 +18,7 @@ export function acceptProject(s: RunState, boardIndex: number, pod: number): boo
   if (!p) return false;
   s.board.splice(boardIndex, 1);
   p.acceptedAt = s.t;
+  p.nextPenaltyAt = s.t + p.deadlineIntervalSeconds;
   s.pods[pod] = p;
   if (s.boardRefillAt <= s.t) s.boardRefillAt = s.t + s.cfg.boardRefillSeconds;
   return true;
@@ -151,12 +152,22 @@ export function tick(s: RunState, dtSeconds: number): void {
     s.credits = Math.max(0, s.credits - wanted);
   }
 
-  // --- decay ----------------------------------------------------------------
+  // --- renegotiation (missed-deadline decay) ---------------------------------
+  // Payout holds perfectly flat while a project is inside its deadline
+  // interval; missing it makes the client renegotiate: payout steps down once
+  // by penaltyFraction of the ORIGINAL offer, and the interval restarts for
+  // the next miss. `while`, not `if`, so a tick that spans more than one
+  // missed interval (a long dt) still applies every step it owes rather than
+  // silently swallowing them.
   for (const p of s.pods) {
     if (!p) continue;
-    const damp = 1 - cfg.decay.sizeDamping * (p.work / cfg.sizes.huge.work);
-    const lost = p.originalPayout * cfg.decay.perSecond * damp * dtSeconds;
-    p.payout = Math.max(p.originalPayout * cfg.decay.floor, p.payout - lost);
+    while (p.nextPenaltyAt <= s.t) {
+      p.payout = Math.max(
+        p.originalPayout * cfg.decay.floor,
+        p.payout - p.originalPayout * p.penaltyFraction
+      );
+      p.nextPenaltyAt += p.deadlineIntervalSeconds;
+    }
   }
 
   // --- agent runs -----------------------------------------------------------
