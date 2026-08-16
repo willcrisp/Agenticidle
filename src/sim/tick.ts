@@ -148,6 +148,23 @@ export function removeAgentFromPod(s: RunState, pod: number): boolean {
   return false;
 }
 
+/**
+ * Fire one specific agent by id, wherever it's sitting. Powers the per-agent
+ * hover-X on the floor — selective removal, versus REMOVE's blunt
+ * most-recently-added-first. Firing is free, same as hiring.
+ */
+export function removeAgent(s: RunState, agentId: number): boolean {
+  const i = s.agents.findIndex((a) => a.id === agentId);
+  if (i < 0) return false;
+  const a = s.agents[i];
+  if (a.state === "blocked") {
+    const qi = s.blockedQueue.indexOf(a.id);
+    if (qi >= 0) s.blockedQueue.splice(qi, 1);
+  }
+  s.agents.splice(i, 1);
+  return true;
+}
+
 /** Every agent on a pod, removed outright. Shared by delivery and abandon. */
 function clearPod(s: RunState, pod: number): void {
   for (let i = s.agents.length - 1; i >= 0; i--) {

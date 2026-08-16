@@ -497,6 +497,35 @@ button {
   color: var(--dim);
   margin-top: 3px;
 }
+/* Per-agent remove: a red X in the top-left corner, revealed on station hover,
+   so a player can fire one specific body instead of REMOVE's most-recent-first.
+   Red = click it. This is a desktop-only game, so a hover affordance is fair. */
+.agent-x {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 6;
+  display: none;
+  width: 15px;
+  height: 15px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid var(--fail);
+  border-radius: 50%;
+  background: #1d1718;
+  color: var(--fail);
+  font-family: var(--px);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+.station:hover .agent-x {
+  display: grid;
+}
+.agent-x:hover {
+  background: var(--fail);
+  color: #fff;
+}
 .desks.swarm .station {
   width: 62px;
   padding-bottom: 6px;

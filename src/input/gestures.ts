@@ -34,6 +34,7 @@ import {
   buyTokens,
   addAgentToPod,
   removeAgentFromPod,
+  removeAgent,
 } from "../sim/tick";
 
 const DRAG_THRESHOLD_PX = 4;
@@ -197,6 +198,17 @@ export function mountGestures(state: RunState, refs: Refs): () => void {
       const podEl = removeBtn.closest<HTMLElement>("[data-pod]");
       const podIndex = podEl ? Number(podEl.dataset.pod) : NaN;
       if (!Number.isNaN(podIndex)) removeAgentFromPod(state, podIndex);
+      return;
+    }
+
+    // ---- per-agent X: fire this exact agent (hover control). Checked before
+    //      the blocked-station retry below, so clicking the X on a blocked
+    //      agent removes it rather than retrying it. ----
+    const agentX = target.closest<HTMLElement>(".agent-x");
+    if (agentX) {
+      const station = agentX.closest<HTMLElement>(".station");
+      const id = station ? Number(station.dataset.agentId) : NaN;
+      if (!Number.isNaN(id)) removeAgent(state, id);
       return;
     }
 
