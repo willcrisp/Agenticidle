@@ -22,7 +22,13 @@
 import type { RunState } from "../sim/state";
 import type { Refs } from "../render/shell";
 import { stageScale } from "../render/stage";
-import { retryAgent, assignAgent, acceptProject, setDial, buyCreditBlock } from "../sim/tick";
+import {
+  retryAgent,
+  assignAgent,
+  acceptProject,
+  setReasoning,
+  buyCreditBlock,
+} from "../sim/tick";
 
 const DRAG_THRESHOLD_PX = 4;
 
@@ -50,12 +56,12 @@ type DragState =
 // formula. A second copy that drifts makes dragged nodes track the cursor at
 // the wrong speed.
 
-function isDial(v: string | undefined): v is "slow" | "normal" | "fast" {
-  return v === "slow" || v === "normal" || v === "fast";
+function isReasoning(v: string | undefined): v is "low" | "medium" | "high" {
+  return v === "low" || v === "medium" || v === "high";
 }
 
 /**
- * Attaches all input: delegated pointerdown for retry/drag-start/dials,
+ * Attaches all input: delegated pointerdown for retry/drag-start/reasoning,
  * document-level pointermove/up for the active drag, and a keydown listener
  * for Enter-to-retry. Returns a teardown fn.
  */
@@ -195,14 +201,14 @@ export function mountGestures(state: RunState, refs: Refs): () => void {
     const target = e.target;
     if (!(target instanceof Element)) return;
 
-    // ---- dial buttons: never a drag, never a retry ----
-    const dialBtn = target.closest<HTMLElement>(".dial b");
-    if (dialBtn) {
-      const podEl = dialBtn.closest<HTMLElement>("[data-pod]");
+    // ---- reasoning buttons: never a drag, never a retry ----
+    const reasoningBtn = target.closest<HTMLElement>(".reasoning b");
+    if (reasoningBtn) {
+      const podEl = reasoningBtn.closest<HTMLElement>("[data-pod]");
       const podIndex = podEl ? Number(podEl.dataset.pod) : NaN;
-      const dial = dialBtn.dataset.dial;
-      if (!Number.isNaN(podIndex) && isDial(dial)) {
-        setDial(state, podIndex, dial);
+      const reasoning = reasoningBtn.dataset.reasoning;
+      if (!Number.isNaN(podIndex) && isReasoning(reasoning)) {
+        setReasoning(state, podIndex, reasoning);
       }
       return;
     }

@@ -227,14 +227,14 @@ describe("economy", () => {
     }
   });
 
-  it("debt locks the dial to SLOW", () => {
+  it("debt locks reasoning to LOW", () => {
     const s = createRun(DEFAULT_CONFIG, "lock");
     acceptProject(s, 0, 0);
-    s.pods[0]!.dial = "fast";
-    s.cash = DEFAULT_CONFIG.debt.slowLockAt - 1;
+    s.pods[0]!.reasoning = "high";
+    s.cash = DEFAULT_CONFIG.debt.lowLockAt - 1;
     step(s, 1);
-    expect(s.slowLocked).toBe(true);
-    expect(s.pods[0]!.dial).toBe("slow");
+    expect(s.lowLocked).toBe(true);
+    expect(s.pods[0]!.reasoning).toBe("low");
   });
 
   it("deep debt repossesses agents", () => {

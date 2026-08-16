@@ -320,13 +320,13 @@ button {
   background: #191d21;
 }
 
-/* the dial — three buttons, no numbers */
-.dial {
+/* the reasoning dial — three buttons, no numbers */
+.reasoning {
   display: flex;
   gap: 3px;
   margin-top: 8px;
 }
-.dial b {
+.reasoning b {
   font-family: var(--px);
   font-size: 10px;
   font-weight: 400;
@@ -337,12 +337,12 @@ button {
   background: #141719;
   color: var(--dim);
 }
-.dial b.on {
+.reasoning b.on {
   color: var(--tok);
   background: #1a2126;
   border-color: var(--tok);
 }
-.dial b.on.hi {
+.reasoning b.on.hi {
   color: var(--fail);
   background: #221a19;
   border-color: var(--fail);

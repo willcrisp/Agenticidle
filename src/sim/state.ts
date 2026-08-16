@@ -1,4 +1,4 @@
-import { Config, ClassName, SizeName, Dial, DEFAULT_CONFIG } from "./config";
+import { Config, ClassName, SizeName, Reasoning, DEFAULT_CONFIG } from "./config";
 import { Rng } from "./rng";
 
 export type AgentState = "idle" | "running" | "blocked";
@@ -34,7 +34,7 @@ export interface Project {
   workDone: number;
   /** Slices landed, for the segmented bar. */
   slices: number[];
-  dial: Dial;
+  reasoning: Reasoning;
   /** Sim-time this was accepted onto the floor. */
   acceptedAt: number;
 }
@@ -62,8 +62,8 @@ export interface RunState {
   /** Agents waiting on a click, in the order they broke. */
   blockedQueue: number[];
 
-  /** Forced to SLOW by the credit limit. */
-  slowLocked: boolean;
+  /** Forced to LOW reasoning by the credit limit. */
+  lowLocked: boolean;
   lastRepoAt: number;
 
   score: number;
@@ -138,7 +138,7 @@ export function createRun(cfg: Config = DEFAULT_CONFIG, seed = "seed-1"): RunSta
     board: [],
     boardRefillAt: 0,
     blockedQueue: [],
-    slowLocked: false,
+    lowLocked: false,
     lastRepoAt: -999,
     score: 0,
     telemetry: emptyTelemetry(cfg),
@@ -206,7 +206,7 @@ export function spawnProject(state: RunState): Project {
     payout,
     workDone: 0,
     slices: [],
-    dial: "normal",
+    reasoning: "medium",
     acceptedAt: 0,
   };
 }

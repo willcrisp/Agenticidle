@@ -8,7 +8,8 @@
 
 export type ClassName = "starter" | "senior" | "elite";
 export type SizeName = "small" | "medium" | "large" | "huge";
-export type Dial = "slow" | "normal" | "fast";
+/** How hard the agents on a pod are told to think. */
+export type Reasoning = "low" | "medium" | "high";
 
 export interface AgentClassConfig {
   /** Work-seconds delivered by one successful run. Also sets slice size. */
@@ -63,10 +64,15 @@ export interface Config {
     sizeDamping: number;
   };
 
-  dials: Record<Dial, { speed: number; burn: number }>;
+  /**
+   * The reasoning dial. Thinking harder gets through the work faster and costs
+   * proportionally more tokens; `speed` multiplies work-seconds accrued,
+   * `burn` multiplies credit spend.
+   */
+  reasoning: Record<Reasoning, { speed: number; burn: number }>;
 
   credits: {
-    /** Tokens per second per running agent at NORMAL, burnMult 1. */
+    /** Tokens per second per running agent at MEDIUM, burnMult 1. */
     burnPerAgentSecond: number;
     /** Does a blocked agent keep burning while it waits for a click? */
     blockedAgentsBurn: boolean;
@@ -80,8 +86,8 @@ export interface Config {
   debt: {
     /** Interest per second on negative cash, as a fraction. */
     interestPerSecond: number;
-    /** Cash below this forces every dial to SLOW. */
-    slowLockAt: number;
+    /** Cash below this forces every pod down to LOW reasoning. */
+    lowLockAt: number;
     /** Cash below this starts repossessing agents. */
     repoAt: number;
     repoIntervalSeconds: number;
@@ -133,10 +139,10 @@ export const DEFAULT_CONFIG: Config = {
 
   decay: { perSecond: 0.0022, floor: 0.12, sizeDamping: 0.35 },
 
-  dials: {
-    slow: { speed: 0.6, burn: 0.45 },
-    normal: { speed: 1.0, burn: 1.0 },
-    fast: { speed: 1.7, burn: 2.4 },
+  reasoning: {
+    low: { speed: 0.6, burn: 0.45 },
+    medium: { speed: 1.0, burn: 1.0 },
+    high: { speed: 1.7, burn: 2.4 },
   },
 
   credits: {
@@ -154,7 +160,7 @@ export const DEFAULT_CONFIG: Config = {
 
   debt: {
     interestPerSecond: 0.0004,
-    slowLockAt: -3000,
+    lowLockAt: -3000,
     repoAt: -12000,
     repoIntervalSeconds: 20,
   },

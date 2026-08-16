@@ -38,8 +38,8 @@ That is the entire input. Concretely, to get a run going:
    working immediately. Pile on as many as you like — there are no seats.
 3. When an agent gets stuck it turns red and asks something idiotic. **Click
    it.** It retries from zero, so the time it already spent is gone.
-4. Payouts **tick down every second** you take. The dial (`SLOW`/`NORMAL`/
-   `FAST`) trades credits for speed.
+4. Payouts **tick down every second** you take. The reasoning dial (`LOW`/
+   `MEDIUM`/`HIGH`) trades credits for speed.
 5. Credits are your fuel. At zero, everyone stops dead while the payout keeps
    falling. `BUY MORE` is a placeholder until the shop lands.
 
@@ -94,7 +94,7 @@ AI.assignAgent(AI.state, AI.state.agents[0].id, 0)   // drive it like a player
 ```
 
 Every mutation goes through an action in `src/sim/tick.ts` — `retryAgent`,
-`assignAgent`, `acceptProject`, `setDial`, `buyCreditBlock`. Nothing else is
+`assignAgent`, `acceptProject`, `setReasoning`, `buyCreditBlock`. Nothing else is
 allowed to write to the run.
 
 ### Tune it
