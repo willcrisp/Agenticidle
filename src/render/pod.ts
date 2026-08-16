@@ -1,10 +1,10 @@
 // Pod binding: open/occupied state, project header, segmented slice bar,
-// dial. Pure — reads state, writes DOM, never mutates state.
+// reasoning dial. Pure — reads state, writes DOM, never mutates state.
 
 import type { Project, RunState } from "../sim/state";
 import type { PodRefs, Refs } from "./shell";
 
-const DIAL_ORDER: readonly Project["dial"][] = ["slow", "normal", "fast"];
+const REASONING_ORDER: readonly Project["reasoning"][] = ["low", "medium", "high"];
 
 interface PodMemo {
   projectId: number | null;
@@ -30,11 +30,11 @@ function renderPips(pips: HTMLElement[], difficulty: number): void {
   }
 }
 
-function renderDials(dials: HTMLElement[], dial: Project["dial"]): void {
-  for (let i = 0; i < dials.length; i++) {
-    const b = dials[i];
+function renderReasoning(buttons: HTMLElement[], reasoning: Project["reasoning"]): void {
+  for (let i = 0; i < buttons.length; i++) {
+    const b = buttons[i];
     if (!b) continue;
-    b.classList.toggle("on", DIAL_ORDER[i] === dial);
+    b.classList.toggle("on", REASONING_ORDER[i] === reasoning);
   }
 }
 
@@ -95,6 +95,6 @@ export function renderPod(state: RunState, refs: Refs, index: number): void {
   }
 
   renderPips(podRefs.pips, p.difficulty);
-  renderDials(podRefs.dials, p.dial);
+  renderReasoning(podRefs.reasoning, p.reasoning);
   renderSegments(podRefs, memo, p);
 }

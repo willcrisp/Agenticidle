@@ -1,4 +1,4 @@
-import { ClassName, Dial } from "./config";
+import { ClassName, Reasoning } from "./config";
 import { RunState, Project } from "./state";
 import {
   acceptProject,
@@ -6,7 +6,7 @@ import {
   buyCreditBlock,
   hireAgent,
   retryAgent,
-  setDial,
+  setReasoning,
 } from "./tick";
 
 /**
@@ -31,7 +31,7 @@ export interface Strategy {
 export interface PlayerApi {
   accept(boardIndex: number, pod: number): void;
   assign(agentId: number, pod: number): void;
-  dial(pod: number, d: Dial): void;
+  reason(pod: number, r: Reasoning): void;
   buy(blockIndex: number): void;
   hire(cls: ClassName): void;
 }
@@ -100,7 +100,7 @@ export class Player {
     return {
       accept: (b, pod) => acceptProject(s, b, pod),
       assign: (id, pod) => assignAgent(s, id, pod),
-      dial: (pod, d) => setDial(s, pod, d),
+      reason: (pod, r) => setReasoning(s, pod, r),
       buy: (b) => buyCreditBlock(s, b),
       hire: (c) => hireAgent(s, c),
     };
@@ -186,10 +186,10 @@ export const balanced: Strategy = {
     for (let pod = 0; pod < s.pods.length; pod++) {
       const p = s.pods[pod];
       if (!p) continue;
-      if (harvest) api.dial(pod, "fast");
+      if (harvest) api.reason(pod, "high");
       else {
         const decayed = 1 - p.payout / p.originalPayout;
-        api.dial(pod, decayed > 0.3 ? "fast" : decayed > 0.12 ? "normal" : "slow");
+        api.reason(pod, decayed > 0.3 ? "high" : decayed > 0.12 ? "medium" : "low");
       }
     }
 
@@ -226,7 +226,7 @@ export const swarmer: Strategy = {
       return worst;
     });
     for (let pod = 0; pod < s.pods.length; pod++) {
-      if (s.pods[pod]) api.dial(pod, harvestMode(s) ? "fast" : "fast");
+      if (s.pods[pod]) api.reason(pod, harvestMode(s) ? "high" : "high");
     }
     keepCreditsTopped(s, api, 60);
     if (s.t < s.cfg.runSeconds * 0.5 && s.cash > s.cfg.classes.senior.cost + 8000) {
@@ -248,7 +248,7 @@ export const eliteOnly: Strategy = {
       return open[counts.indexOf(Math.min(...counts))];
     });
     for (let pod = 0; pod < s.pods.length; pod++) {
-      if (s.pods[pod]) api.dial(pod, harvestMode(s) ? "fast" : "normal");
+      if (s.pods[pod]) api.reason(pod, harvestMode(s) ? "high" : "medium");
     }
     keepCreditsTopped(s, api, 80);
     if (s.t < s.cfg.runSeconds * 0.7 && s.cash > s.cfg.classes.elite.cost + 5000) {
@@ -270,7 +270,7 @@ export const swarmCheap: Strategy = {
       return open[counts.indexOf(Math.min(...counts))];
     });
     for (let pod = 0; pod < s.pods.length; pod++) {
-      if (s.pods[pod]) api.dial(pod, harvestMode(s) ? "fast" : "normal");
+      if (s.pods[pod]) api.reason(pod, harvestMode(s) ? "high" : "medium");
     }
     keepCreditsTopped(s, api, 70);
     if (s.t < s.cfg.runSeconds * 0.7 && s.cash > s.cfg.classes.starter.cost + 4000) {

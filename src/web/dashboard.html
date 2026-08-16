@@ -181,17 +181,17 @@ const LEVERS = [
     ["decay.sizeDamping","Big-job damping",0,1,0.05,v=>v.toFixed(2),"Larger jobs decay slower, since they take longer by nature."],
   ]],
   ["Credits", [
-    ["credits.burnPerAgentSecond","Burn / agent / sec",0.2,12,0.1,v=>v.toFixed(1),"At NORMAL, before class and dial multipliers."],
-    ["dials.slow.speed","SLOW speed ×",0.2,1,0.05,v=>v.toFixed(2)+"×",null],
-    ["dials.slow.burn","SLOW burn ×",0.1,1,0.05,v=>v.toFixed(2)+"×",null],
-    ["dials.fast.speed","FAST speed ×",1,4,0.1,v=>v.toFixed(1)+"×",null],
-    ["dials.fast.burn","FAST burn ×",1,6,0.1,v=>v.toFixed(1)+"×","The central tension: is the decay you avoid worth the credits you burn?"],
+    ["credits.burnPerAgentSecond","Burn / agent / sec",0.2,12,0.1,v=>v.toFixed(1),"At MEDIUM reasoning, before class and reasoning multipliers."],
+    ["reasoning.low.speed","LOW speed ×",0.2,1,0.05,v=>v.toFixed(2)+"×",null],
+    ["reasoning.low.burn","LOW burn ×",0.1,1,0.05,v=>v.toFixed(2)+"×",null],
+    ["reasoning.high.speed","HIGH speed ×",1,4,0.1,v=>v.toFixed(1)+"×",null],
+    ["reasoning.high.burn","HIGH burn ×",1,6,0.1,v=>v.toFixed(1)+"×","The central tension: is the decay you avoid worth the credits you burn?"],
     ["credits.priceDropPerDelivery","Price drop / delivery",0,0.1,0.005,v=>(v*100).toFixed(1)+"%","Token prices fall as you deliver. The engine-building payoff."],
     ["credits.priceFloorMult","Price floor",0.1,1,0.05,v=>v.toFixed(2)+"×",null],
   ]],
   ["Debt", [
     ["debt.interestPerSecond","Interest / sec",0,0.003,0.0001,v=>(v*100).toFixed(3)+"%",null],
-    ["debt.slowLockAt","SLOW lock at",-40000,0,500,money,"Below this, every dial is forced to SLOW — the punishment that makes decay eat you faster."],
+    ["debt.lowLockAt","LOW lock at",-40000,0,500,money,"Below this, every pod is forced down to LOW reasoning — the punishment that makes decay eat you faster."],
     ["debt.repoAt","Repossess at",-100000,0,1000,money,null],
     ["debt.repoIntervalSeconds","Repossess every",5,120,5,v=>v+"s",null],
   ]],
@@ -413,7 +413,7 @@ function diagnose(rows, cfg){
   if(b.stalledSeconds>60)
     out.push(["warn","CREDIT STALLS","Runs spend "+b.stalledSeconds.toFixed(0)+"s frozen at zero credits. Sickening by design, but check it isn't just tedium."]);
   if(rows.every(r=>r.debtRate<0.05))
-    out.push(["warn","DEBT NEVER BITES","Almost no run ends in the red, so the whole debt ladder — interest, SLOW lock, repossession — is dead content."]);
+    out.push(["warn","DEBT NEVER BITES","Almost no run ends in the red, so the whole debt ladder — interest, LOW-reasoning lock, repossession — is dead content."]);
   return out;
 }
 

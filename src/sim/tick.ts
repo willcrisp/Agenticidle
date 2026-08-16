@@ -1,4 +1,4 @@
-import { ClassName, Dial } from "./config";
+import { ClassName, Reasoning } from "./config";
 import {
   RunState,
   effectiveOneShot,
@@ -60,10 +60,10 @@ export function retryAgent(s: RunState, agentId: number): boolean {
   return true;
 }
 
-export function setDial(s: RunState, pod: number, dial: Dial): boolean {
+export function setReasoning(s: RunState, pod: number, reasoning: Reasoning): boolean {
   const p = s.pods[pod];
   if (!p) return false;
-  p.dial = s.slowLocked ? "slow" : dial;
+  p.reasoning = s.lowLocked ? "low" : reasoning;
   return true;
 }
 
@@ -108,10 +108,10 @@ export function tick(s: RunState, dtSeconds: number): void {
   s.t += dtSeconds;
 
   // --- credit limit / repossession -----------------------------------------
-  const wasLocked = s.slowLocked;
-  s.slowLocked = s.cash < cfg.debt.slowLockAt;
-  if (s.slowLocked && !wasLocked) {
-    for (const p of s.pods) if (p) p.dial = "slow";
+  const wasLocked = s.lowLocked;
+  s.lowLocked = s.cash < cfg.debt.lowLockAt;
+  if (s.lowLocked && !wasLocked) {
+    for (const p of s.pods) if (p) p.reasoning = "low";
   }
   if (s.cash < 0) {
     s.cash += s.cash * cfg.debt.interestPerSecond * dtSeconds;
@@ -131,7 +131,10 @@ export function tick(s: RunState, dtSeconds: number): void {
     const counts =
       a.state === "running" || (a.state === "blocked" && cfg.credits.blockedAgentsBurn);
     if (!counts) continue;
-    burn += cfg.credits.burnPerAgentSecond * cfg.classes[a.cls].burnMult * cfg.dials[p.dial].burn;
+    burn +=
+      cfg.credits.burnPerAgentSecond *
+      cfg.classes[a.cls].burnMult *
+      cfg.reasoning[p.reasoning].burn;
   }
   const wanted = burn * dtSeconds;
   const stalled = s.credits <= 0 && wanted > 0;
@@ -166,7 +169,7 @@ export function tick(s: RunState, dtSeconds: number): void {
     }
     if (stalled) continue; // zero credits: frozen, while the payout keeps falling
 
-    a.progress += dtSeconds * cfg.dials[p.dial].speed;
+    a.progress += dtSeconds * cfg.reasoning[p.reasoning].speed;
     const runWork = cfg.classes[a.cls].runWork;
     if (a.progress < runWork) continue;
 

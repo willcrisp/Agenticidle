@@ -8,8 +8,8 @@
 // no `.cred-v`, etc).
 
 const POD_COUNT = 4;
-const DIAL_KEYS: readonly string[] = ["slow", "normal", "fast"];
-const DIAL_LABELS: readonly string[] = ["SLOW", "NORMAL", "FAST"];
+const REASONING_KEYS: readonly string[] = ["low", "medium", "high"];
+const REASONING_LABELS: readonly string[] = ["LOW", "MEDIUM", "HIGH"];
 
 export interface PodRefs {
   root: HTMLElement;
@@ -17,7 +17,7 @@ export interface PodRefs {
   pips: HTMLElement[]; // length 5
   payout: HTMLElement;
   segs: HTMLElement; // slice container
-  dials: HTMLElement[]; // length 3, order [slow, normal, fast]
+  reasoning: HTMLElement[]; // length 3, order [low, medium, high]
   desks: HTMLElement; // agent stations reparent into here
   emptySlot: HTMLElement; // the dashed DROP HERE target inside .desks
   open: HTMLElement; // the "EMPTY / DRAG A PROJECT HERE" message div
@@ -137,19 +137,23 @@ function buildPod(index: number): PodRefs {
   const rest = el("span", "rest");
   segs.append(rest);
 
-  const dial = el("div", "dial");
-  const dials: HTMLElement[] = [];
-  for (let i = 0; i < DIAL_KEYS.length; i++) {
-    const key = DIAL_KEYS[i];
-    const label = DIAL_LABELS[i];
+  // The caption sits inline with the buttons rather than on its own line: the
+  // pod header is fixed-height inside the 720px stage, so a second row would
+  // come out of the desks below it.
+  const dialRow = el("div", "reasoning");
+  dialRow.append(text("span", "reasoning-l", "REASONING"));
+  const reasoning: HTMLElement[] = [];
+  for (let i = 0; i < REASONING_KEYS.length; i++) {
+    const key = REASONING_KEYS[i];
+    const label = REASONING_LABELS[i];
     if (key === undefined || label === undefined) continue;
     const b = text("b", "", label);
-    b.dataset.dial = key;
-    dials.push(b);
-    dial.append(b);
+    b.dataset.reasoning = key;
+    reasoning.push(b);
+    dialRow.append(b);
   }
 
-  podH.append(r1, segs, dial);
+  podH.append(r1, segs, dialRow);
 
   // ---- desks ----
   const desks = el("div", "desks");
@@ -166,7 +170,7 @@ function buildPod(index: number): PodRefs {
 
   root.append(podH, desks, open);
 
-  return { root, name, pips, payout, segs, dials, desks, emptySlot, open };
+  return { root, name, pips, payout, segs, reasoning, desks, emptySlot, open };
 }
 
 function buildTray(): { tray: HTMLElement; trayIdle: HTMLElement; trayBoard: HTMLElement } {

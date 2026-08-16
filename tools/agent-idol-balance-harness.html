@@ -178,10 +178,10 @@ canvas{display:block;width:100%;image-rendering:auto}
     sizeWeights: { small: 3, medium: 4, large: 2, huge: 1 },
     difficulty: { penaltyPerPip: 0.09, floor: 0.15 },
     decay: { perSecond: 22e-4, floor: 0.12, sizeDamping: 0.35 },
-    dials: {
-      slow: { speed: 0.6, burn: 0.45 },
-      normal: { speed: 1, burn: 1 },
-      fast: { speed: 1.7, burn: 2.4 }
+    reasoning: {
+      low: { speed: 0.6, burn: 0.45 },
+      medium: { speed: 1, burn: 1 },
+      high: { speed: 1.7, burn: 2.4 }
     },
     credits: {
       burnPerAgentSecond: 3,
@@ -197,7 +197,7 @@ canvas{display:block;width:100%;image-rendering:auto}
     },
     debt: {
       interestPerSecond: 4e-4,
-      slowLockAt: -3e3,
+      lowLockAt: -3e3,
       repoAt: -12e3,
       repoIntervalSeconds: 20
     },
@@ -328,7 +328,7 @@ canvas{display:block;width:100%;image-rendering:auto}
       board: [],
       boardRefillAt: 0,
       blockedQueue: [],
-      slowLocked: false,
+      lowLocked: false,
       lastRepoAt: -999,
       score: 0,
       telemetry: emptyTelemetry(cfg)
@@ -385,7 +385,7 @@ canvas{display:block;width:100%;image-rendering:auto}
       payout,
       workDone: 0,
       slices: [],
-      dial: "normal",
+      reasoning: "medium",
       acceptedAt: 0
     };
   }
@@ -453,10 +453,10 @@ canvas{display:block;width:100%;image-rendering:auto}
     s.telemetry.runsAttempted++;
     return true;
   }
-  function setDial(s, pod, dial) {
+  function setReasoning(s, pod, reasoning) {
     const p = s.pods[pod];
     if (!p) return false;
-    p.dial = s.slowLocked ? "slow" : dial;
+    p.reasoning = s.lowLocked ? "low" : reasoning;
     return true;
   }
   function buyCreditBlock(s, blockIndex) {
@@ -483,10 +483,10 @@ canvas{display:block;width:100%;image-rendering:auto}
     if (s.finished) return;
     const cfg = s.cfg;
     s.t += dtSeconds;
-    const wasLocked = s.slowLocked;
-    s.slowLocked = s.cash < cfg.debt.slowLockAt;
-    if (s.slowLocked && !wasLocked) {
-      for (const p of s.pods) if (p) p.dial = "slow";
+    const wasLocked = s.lowLocked;
+    s.lowLocked = s.cash < cfg.debt.lowLockAt;
+    if (s.lowLocked && !wasLocked) {
+      for (const p of s.pods) if (p) p.reasoning = "low";
     }
     if (s.cash < 0) {
       s.cash += s.cash * cfg.debt.interestPerSecond * dtSeconds;
@@ -503,7 +503,7 @@ canvas{display:block;width:100%;image-rendering:auto}
       if (!p) continue;
       const counts = a.state === "running" || a.state === "blocked" && cfg.credits.blockedAgentsBurn;
       if (!counts) continue;
-      burn += cfg.credits.burnPerAgentSecond * cfg.classes[a.cls].burnMult * cfg.dials[p.dial].burn;
+      burn += cfg.credits.burnPerAgentSecond * cfg.classes[a.cls].burnMult * cfg.reasoning[p.reasoning].burn;
     }
     const wanted = burn * dtSeconds;
     const stalled = s.credits <= 0 && wanted > 0;
@@ -532,7 +532,7 @@ canvas{display:block;width:100%;image-rendering:auto}
         continue;
       }
       if (stalled) continue;
-      a.progress += dtSeconds * cfg.dials[p.dial].speed;
+      a.progress += dtSeconds * cfg.reasoning[p.reasoning].speed;
       const runWork = cfg.classes[a.cls].runWork;
       if (a.progress < runWork) continue;
       a.progress = 0;
@@ -666,7 +666,7 @@ canvas{display:block;width:100%;image-rendering:auto}
       return {
         accept: (b, pod) => acceptProject(s, b, pod),
         assign: (id, pod) => assignAgent(s, id, pod),
-        dial: (pod, d) => setDial(s, pod, d),
+        reason: (pod, r) => setReasoning(s, pod, r),
         buy: (b) => buyCreditBlock(s, b),
         hire: (c) => hireAgent(s, c)
       };
@@ -730,10 +730,10 @@ canvas{display:block;width:100%;image-rendering:auto}
       for (let pod = 0; pod < s.pods.length; pod++) {
         const p = s.pods[pod];
         if (!p) continue;
-        if (harvest) api.dial(pod, "fast");
+        if (harvest) api.reason(pod, "high");
         else {
           const decayed = 1 - p.payout / p.originalPayout;
-          api.dial(pod, decayed > 0.3 ? "fast" : decayed > 0.12 ? "normal" : "slow");
+          api.reason(pod, decayed > 0.3 ? "high" : decayed > 0.12 ? "medium" : "low");
         }
       }
       keepCreditsTopped(s, api, harvest ? 20 : 70);
@@ -766,7 +766,7 @@ canvas{display:block;width:100%;image-rendering:auto}
         return worst;
       });
       for (let pod = 0; pod < s.pods.length; pod++) {
-        if (s.pods[pod]) api.dial(pod, harvestMode(s) ? "fast" : "fast");
+        if (s.pods[pod]) api.reason(pod, harvestMode(s) ? "high" : "high");
       }
       keepCreditsTopped(s, api, 60);
       if (s.t < s.cfg.runSeconds * 0.5 && s.cash > s.cfg.classes.senior.cost + 8e3) {
@@ -786,7 +786,7 @@ canvas{display:block;width:100%;image-rendering:auto}
         return open[counts.indexOf(Math.min(...counts))];
       });
       for (let pod = 0; pod < s.pods.length; pod++) {
-        if (s.pods[pod]) api.dial(pod, harvestMode(s) ? "fast" : "normal");
+        if (s.pods[pod]) api.reason(pod, harvestMode(s) ? "high" : "medium");
       }
       keepCreditsTopped(s, api, 80);
       if (s.t < s.cfg.runSeconds * 0.7 && s.cash > s.cfg.classes.elite.cost + 5e3) {
@@ -806,7 +806,7 @@ canvas{display:block;width:100%;image-rendering:auto}
         return open[counts.indexOf(Math.min(...counts))];
       });
       for (let pod = 0; pod < s.pods.length; pod++) {
-        if (s.pods[pod]) api.dial(pod, harvestMode(s) ? "fast" : "normal");
+        if (s.pods[pod]) api.reason(pod, harvestMode(s) ? "high" : "medium");
       }
       keepCreditsTopped(s, api, 70);
       if (s.t < s.cfg.runSeconds * 0.7 && s.cash > s.cfg.classes.starter.cost + 4e3) {
@@ -992,17 +992,17 @@ const LEVERS = [
     ["decay.sizeDamping","Big-job damping",0,1,0.05,v=>v.toFixed(2),"Larger jobs decay slower, since they take longer by nature."],
   ]],
   ["Credits", [
-    ["credits.burnPerAgentSecond","Burn / agent / sec",0.2,12,0.1,v=>v.toFixed(1),"At NORMAL, before class and dial multipliers."],
-    ["dials.slow.speed","SLOW speed ×",0.2,1,0.05,v=>v.toFixed(2)+"×",null],
-    ["dials.slow.burn","SLOW burn ×",0.1,1,0.05,v=>v.toFixed(2)+"×",null],
-    ["dials.fast.speed","FAST speed ×",1,4,0.1,v=>v.toFixed(1)+"×",null],
-    ["dials.fast.burn","FAST burn ×",1,6,0.1,v=>v.toFixed(1)+"×","The central tension: is the decay you avoid worth the credits you burn?"],
+    ["credits.burnPerAgentSecond","Burn / agent / sec",0.2,12,0.1,v=>v.toFixed(1),"At MEDIUM reasoning, before class and reasoning multipliers."],
+    ["reasoning.low.speed","LOW speed ×",0.2,1,0.05,v=>v.toFixed(2)+"×",null],
+    ["reasoning.low.burn","LOW burn ×",0.1,1,0.05,v=>v.toFixed(2)+"×",null],
+    ["reasoning.high.speed","HIGH speed ×",1,4,0.1,v=>v.toFixed(1)+"×",null],
+    ["reasoning.high.burn","HIGH burn ×",1,6,0.1,v=>v.toFixed(1)+"×","The central tension: is the decay you avoid worth the credits you burn?"],
     ["credits.priceDropPerDelivery","Price drop / delivery",0,0.1,0.005,v=>(v*100).toFixed(1)+"%","Token prices fall as you deliver. The engine-building payoff."],
     ["credits.priceFloorMult","Price floor",0.1,1,0.05,v=>v.toFixed(2)+"×",null],
   ]],
   ["Debt", [
     ["debt.interestPerSecond","Interest / sec",0,0.003,0.0001,v=>(v*100).toFixed(3)+"%",null],
-    ["debt.slowLockAt","SLOW lock at",-40000,0,500,money,"Below this, every dial is forced to SLOW — the punishment that makes decay eat you faster."],
+    ["debt.lowLockAt","LOW lock at",-40000,0,500,money,"Below this, every pod is forced down to LOW reasoning — the punishment that makes decay eat you faster."],
     ["debt.repoAt","Repossess at",-100000,0,1000,money,null],
     ["debt.repoIntervalSeconds","Repossess every",5,120,5,v=>v+"s",null],
   ]],
@@ -1224,7 +1224,7 @@ function diagnose(rows, cfg){
   if(b.stalledSeconds>60)
     out.push(["warn","CREDIT STALLS","Runs spend "+b.stalledSeconds.toFixed(0)+"s frozen at zero credits. Sickening by design, but check it isn't just tedium."]);
   if(rows.every(r=>r.debtRate<0.05))
-    out.push(["warn","DEBT NEVER BITES","Almost no run ends in the red, so the whole debt ladder — interest, SLOW lock, repossession — is dead content."]);
+    out.push(["warn","DEBT NEVER BITES","Almost no run ends in the red, so the whole debt ladder — interest, LOW-reasoning lock, repossession — is dead content."]);
   return out;
 }
 

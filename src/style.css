@@ -320,13 +320,24 @@ button {
   background: #191d21;
 }
 
-/* the dial — three buttons, no numbers */
-.dial {
+/* the reasoning dial — a grey caption and three buttons, no numbers */
+.reasoning {
   display: flex;
+  align-items: center;
   gap: 3px;
   margin-top: 8px;
 }
-.dial b {
+.reasoning-l {
+  font-family: var(--px);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  /* --dim, not --faint: this is the one caption that has a job to do, and it
+     matches the off-state buttons it labels. */
+  color: var(--dim);
+  margin-right: 7px;
+  white-space: nowrap;
+}
+.reasoning b {
   font-family: var(--px);
   font-size: 10px;
   font-weight: 400;
@@ -337,12 +348,12 @@ button {
   background: #141719;
   color: var(--dim);
 }
-.dial b.on {
+.reasoning b.on {
   color: var(--tok);
   background: #1a2126;
   border-color: var(--tok);
 }
-.dial b.on.hi {
+.reasoning b.on.hi {
   color: var(--fail);
   background: #221a19;
   border-color: var(--fail);
