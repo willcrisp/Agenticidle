@@ -497,14 +497,16 @@ button {
   color: var(--dim);
   margin-top: 3px;
 }
-/* Per-agent remove: a red X in the bottom-left corner, revealed on station
-   hover, so a player can fire one specific body instead of REMOVE's
-   most-recent-first. Bottom-left keeps it clear of the top-centre blocked
-   speech bubble. Red = click it. Desktop-only game, so hover is fair. */
+/* Per-agent remove: a red X at the sprite's lower-left edge, revealed on
+   station hover, so a player can fire one specific body instead of REMOVE's
+   most-recent-first. Sits on the icon (mirroring the chevrons on the right)
+   and clear of the top-centre blocked speech bubble. The top/left values
+   track the sprite per density tier below. Red = click it. Desktop-only
+   game, so hover is fair. */
 .agent-x {
   position: absolute;
-  bottom: 0;
-  left: 0;
+  top: 46px;
+  left: 8px;
   z-index: 6;
   display: none;
   width: 15px;
@@ -526,6 +528,19 @@ button {
 .agent-x:hover {
   background: var(--fail);
   color: #fff;
+}
+/* Track the shrinking sprite (48/32/16px) so the X stays on its lower-left. */
+.desks.swarm .agent-x {
+  top: 30px;
+  left: 5px;
+}
+.desks.dense .agent-x {
+  top: 16px;
+  left: 3px;
+}
+.desks.packed .agent-x {
+  top: 2px;
+  left: 1px;
 }
 .desks.swarm .station {
   width: 62px;
